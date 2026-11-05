@@ -149,3 +149,8 @@ body {
     border: 1.5px solid #5f3c1b !important;
   }
 }
+
+/* Bàn VIP: viền vàng bên trong để phân biệt với bàn thường ở mọi trạng thái màu */
+.vip-cell {
+  box-shadow: inset 0 0 0 2px #e0b04a;
+}

@@ -1,11 +1,11 @@
 'use client'
 
 import { Fragment, useRef, useState } from 'react'
-import { AlertTriangle, BellRing, ConciergeBell, Flame, Utensils } from 'lucide-react'
+import { AlertTriangle, BellRing, ConciergeBell, Crown, Flame, Utensils } from 'lucide-react'
 import clsx from 'clsx'
 import { edgeFlags, key, labelCell, line, type LayoutTable } from '@/lib/grid/grid'
 import type { TableTone } from '@/lib/derive'
-import type { Cell } from '@/lib/types'
+import type { Cell, TableKind } from '@/lib/types'
 
 const TONE: Record<TableTone, { bg: string; border: string; text: string }> = {
   empty: { bg: 'bg-cream wood-tile', border: 'border-wood-200', text: 'text-wood-700' },
@@ -26,6 +26,7 @@ const ICON: Partial<Record<TableTone, typeof Flame>> = {
 
 export interface GridTable extends Pick<LayoutTable, 'id' | 'code' | 'cells'> {
   seats?: number
+  kind?: TableKind
 }
 
 interface Props {
@@ -127,6 +128,7 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
                   tone.text,
                   !draw && onTableClick && 'cursor-pointer',
                   selected && 'z-10',
+                  t.kind === 'vip' && 'vip-cell',
                 )}
                 style={{
                   marginTop: e.top ? 2 : 0,
@@ -157,7 +159,8 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
                     }}
                     className="flex flex-col items-center justify-center leading-none outline-offset-4"
                   >
-                    <span className="font-display font-bold" style={{ fontSize: Math.max(11, Math.min(17, cell * 0.34)) }}>
+                    <span className="flex items-center gap-0.5 font-display font-bold" style={{ fontSize: Math.max(11, Math.min(17, cell * 0.34)) }}>
+                      {t.kind === 'vip' && <Crown aria-label="Bàn VIP" className="size-3 shrink-0 text-[#b8862a]" style={{ width: Math.max(10, cell * 0.26), height: Math.max(10, cell * 0.26) }} />}
                       {t.code}
                     </span>
                     {cell >= 40 && Icon && <Icon className="mt-1 size-3.5 opacity-90" />}

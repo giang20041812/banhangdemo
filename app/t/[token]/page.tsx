@@ -7,13 +7,17 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { getBackend } from '@/lib/backend'
+import { comboDetail, comboUnitPrice, lineKey } from '@/lib/combo'
 import { needsAttention } from '@/lib/derive'
 import { formatVnd, hhmm } from '@/lib/format'
 import { activeUnavailability, isUnavailable, sellableItems } from '@/lib/menu-logic'
 import type { MenuItem, OrderItem, PlaceOrderResult, PublicSnapshot } from '@/lib/types'
 import { Button, Modal, Stepper, inputCls } from '@/components/ui'
+import { ComboDialog } from '@/components/menu/ComboDialog'
 
 interface CartLine {
+  itemId: string
+  choices?: Record<string, string[]>
   qty: number
   note: string
 }
@@ -38,6 +42,7 @@ export default function GuestPage() {
   const [cart, setCart] = useState<Cart>({})
   const [tab, setTab] = useState<'menu' | 'orders'>('menu')
   const [cartOpen, setCartOpen] = useState(false)
+  const [comboFor, setComboFor] = useState<MenuItem | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<PlaceOrderResult | null>(null)
@@ -76,7 +81,11 @@ export default function GuestPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(cartKey)
-      if (raw) setCart(JSON.parse(raw))
+      if (raw) {
+        // giỏ phiên bản cũ không có itemId trong từng dòng: bỏ qua
+        const parsed = JSON.parse(raw) as Cart
+        setCart(Object.fromEntries(Object.entries(parsed).filter(([, l]) => l && l.itemId)))
+      }
     } catch {}
   }, [cartKey])
   useEffect(() => {
@@ -102,13 +111,13 @@ export default function GuestPage() {
     if (!snap || cartOpen) return
     const ok = new Set(sellable.map((i) => i.id))
     const bad = Object.keys(cart).filter(
-      (id) => cart[id].qty > 0 && (!ok.has(id) || isUnavailable(id, snap.unavailability, now)),
+      (k) => cart[k].qty > 0 && (!ok.has(cart[k].itemId) || isUnavailable(cart[k].itemId, snap.unavailability, now)),
     )
     if (!bad.length) return
-    setRemovedNames((prev) => [...new Set([...prev, ...bad.map((id) => snap.items.find((i) => i.id === id)?.name ?? '')])].filter(Boolean))
+    setRemovedNames((prev) => [...new Set([...prev, ...bad.map((k) => snap.items.find((i) => i.id === cart[k].itemId)?.name ?? '')])].filter(Boolean))
     setCart((c) => {
       const n = { ...c }
-      for (const id of bad) delete n[id]
+      for (const k of bad) delete n[k]
       return n
     })
   }, [snap, sellable, cart, cartOpen, now])
@@ -121,18 +130,28 @@ export default function GuestPage() {
   const itemOf = (id: string) => snap.items.find((i) => i.id === id)
   const sellableIds = new Set(sellable.map((i) => i.id))
   const lines = Object.entries(cart).filter(([, l]) => l.qty > 0)
-  const goodLines = lines.filter(([id]) => sellableIds.has(id) && !outOf(id))
-  const badLines = lines.filter(([id]) => !sellableIds.has(id) || outOf(id))
+  const goodLines = lines.filter(([, l]) => sellableIds.has(l.itemId) && !outOf(l.itemId))
+  const badLines = lines.filter(([, l]) => !sellableIds.has(l.itemId) || outOf(l.itemId))
   const count = goodLines.reduce((s, [, l]) => s + l.qty, 0)
-  const total = goodLines.reduce((s, [id, l]) => s + l.qty * (itemOf(id)?.price ?? 0), 0)
+  const unitOf = (l: CartLine) => {
+    const it = itemOf(l.itemId)
+    return it ? comboUnitPrice(it, l.choices) : 0
+  }
+  const total = goodLines.reduce((s, [, l]) => s + l.qty * unitOf(l), 0)
 
-  const setQty = (id: string, qty: number) =>
+  /** Đặt số lượng cho dòng `key`; dòng chưa có sẽ được tạo từ itemId + choices */
+  const setLine = (key: string, itemId: string, qty: number, choices?: Record<string, string[]>) =>
     setCart((c) => {
       const n = { ...c }
-      if (qty <= 0) delete n[id]
-      else n[id] = { qty, note: c[id]?.note ?? '' }
+      if (qty <= 0) delete n[key]
+      else n[key] = { itemId, choices: c[key]?.choices ?? choices, qty, note: c[key]?.note ?? '' }
       return n
     })
+  const setQty = (id: string, qty: number) => setLine(id, id, qty)
+  const addCombo = (item: MenuItem, choices: Record<string, string[]>, qty: number) => {
+    const key = lineKey(item.id, choices)
+    setLine(key, item.id, (cart[key]?.qty ?? 0) + qty, choices)
+  }
 
   const orderItems = [...snap.orderItems].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   const attention = orderItems.filter((o) => needsAttention(o, snap, now))
@@ -145,13 +164,14 @@ export default function GuestPage() {
     try {
       const res = await backend.placeOrder(
         token,
-        goodLines.map(([itemId, l]) => ({ itemId, qty: l.qty, note: l.note.trim() || undefined })),
+        goodLines.map(([, l]) => ({ itemId: l.itemId, qty: l.qty, note: l.note.trim() || undefined, choices: l.choices })),
       )
       // bỏ khỏi giỏ: món đã gửi và món bị từ chối (khách chọn lại từ gợi ý)
       setCart((c) => {
         const n = { ...c }
-        for (const [id] of goodLines) delete n[id]
-        for (const r of res.rejected) delete n[r.itemId]
+        for (const [k] of goodLines) delete n[k]
+        const rej = new Set(res.rejected.map((r) => r.itemId))
+        for (const [k, l] of Object.entries(n)) if (rej.has(l.itemId)) delete n[k]
         return n
       })
       await load()
@@ -172,7 +192,7 @@ export default function GuestPage() {
   const suggestions = (result?.rejected ?? []).flatMap((r) => {
     const orig = itemOf(r.itemId)
     return sellable
-      .filter((i) => i.categoryId === orig?.categoryId && i.id !== r.itemId && !outOf(i.id))
+      .filter((i) => !i.combo && i.categoryId === orig?.categoryId && i.id !== r.itemId && !outOf(i.id))
       .sort((a, b) => Math.abs(a.price - (orig?.price ?? 0)) - Math.abs(b.price - (orig?.price ?? 0)))
       .slice(0, 3)
   })
@@ -266,12 +286,17 @@ export default function GuestPage() {
                       <GuestItem
                         key={item.id}
                         item={item}
-                        qty={cart[item.id]?.qty ?? 0}
+                        qty={
+                          item.combo
+                            ? Object.values(cart).filter((l) => l.itemId === item.id).reduce((s, l) => s + l.qty, 0)
+                            : (cart[item.id]?.qty ?? 0)
+                        }
                         soldOutUntil={(() => {
                           const u = activeUnavailability(item.id, snap.unavailability, now)
                           return u ? (u.endsAt ? hhmm(u.endsAt, tz) : 'later') : undefined
                         })()}
                         onQty={(q) => setQty(item.id, q)}
+                        onPickCombo={() => setComboFor(item)}
                       />
                     ))}
                   </ul>
@@ -339,6 +364,7 @@ export default function GuestPage() {
                           <span className="mt-0.5 rounded-md bg-wood-100 px-1.5 text-sm font-bold text-wood-700">{x.qty}×</span>
                           <div className="min-w-0 flex-1">
                             <p className={clsx('font-semibold leading-snug', x.status === 'cancelled' && 'line-through')}>{x.name}</p>
+                            {x.detail && <p className="whitespace-pre-line text-xs text-wood-600">{x.detail}</p>}
                             {x.note && <p className="text-xs text-ink-soft">“{x.note}”</p>}
                             {from && <p className="text-xs text-wood-500">Đổi từ {from.name}</p>}
                           </div>
@@ -354,6 +380,19 @@ export default function GuestPage() {
             })
           )}
         </div>
+      )}
+
+      {comboFor && (
+        <ComboDialog
+          item={comboFor}
+          items={snap.items}
+          isOut={outOf}
+          onClose={() => setComboFor(null)}
+          onConfirm={(choices, qty) => {
+            addCombo(comboFor, choices, qty)
+            setComboFor(null)
+          }}
+        />
       )}
 
       {/* Giỏ hàng */}
@@ -377,26 +416,29 @@ export default function GuestPage() {
         }
       >
         <div className="space-y-3">
-          {badLines.map(([id]) => (
+          {badLines.map(([id, l]) => (
             <div key={id} className="flex items-center gap-3 rounded-xl border border-brick/40 bg-brick-soft p-3">
               <AlertTriangle className="size-5 shrink-0 text-brick" />
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-brick">{itemOf(id)?.name}</p>
+                <p className="font-semibold text-brick">{itemOf(l.itemId)?.name}</p>
                 <p className="text-xs text-brick/80">Vừa hết nên sẽ không được gửi. Hãy bỏ món này hoặc chọn món khác.</p>
               </div>
               <button onClick={() => setQty(id, 0)} className="grid size-10 place-items-center rounded-lg text-brick hover:bg-white/60" aria-label="Bỏ món"><Trash2 className="size-5" /></button>
             </div>
           ))}
           {goodLines.map(([id, l]) => {
-            const item = itemOf(id)!
+            const item = itemOf(l.itemId)!
+            const unit = unitOf(l)
+            const detail = comboDetail(item, l.choices, snap.items)
             return (
               <div key={id} className="rounded-xl bg-white p-3 ring-1 ring-wood-100">
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">{item.name}</p>
-                    <p className="text-xs text-wood-600">{formatVnd(item.price)} · {formatVnd(item.price * l.qty)}</p>
+                    {detail && <p className="whitespace-pre-line text-xs text-wood-600">{detail}</p>}
+                    <p className="text-xs text-wood-600">{formatVnd(unit)} · {formatVnd(unit * l.qty)}</p>
                   </div>
-                  <Stepper value={l.qty} onChange={(q) => setQty(id, q)} size="sm" />
+                  <Stepper value={l.qty} onChange={(q) => setLine(id, l.itemId, q)} size="sm" />
                 </div>
                 <input
                   className={clsx(inputCls, 'mt-2 min-h-10 text-[13px]')}
@@ -464,12 +506,13 @@ export default function GuestPage() {
 }
 
 function GuestItem({
-  item, qty, soldOutUntil, onQty,
+  item, qty, soldOutUntil, onQty, onPickCombo,
 }: {
   item: MenuItem
   qty: number
   soldOutUntil?: string
   onQty: (q: number) => void
+  onPickCombo: () => void
 }) {
   const out = soldOutUntil !== undefined
   return (
@@ -479,15 +522,27 @@ function GuestItem({
         <img src={item.imageUrl} alt="" className={clsx('size-[72px] shrink-0 rounded-xl object-cover min-[400px]:size-20', out && 'grayscale')} />
       )}
       <div className="min-w-0 flex-1">
-        <p className={clsx('font-semibold leading-snug', out && 'text-ink-soft')}>{item.name}</p>
+        <p className={clsx('font-semibold leading-snug', out && 'text-ink-soft')}>
+          {item.name}
+          {item.combo && <span className="ml-2 rounded-full bg-turmeric-soft px-2 py-0.5 align-middle text-[11px] font-bold text-[#8a6417]">Combo</span>}
+        </p>
         {item.description && <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink-soft">{item.description}</p>}
-        <p className="mt-1.5 font-bold text-wood-600">{formatVnd(item.price)}</p>
+        <p className="mt-1.5 font-bold text-wood-600">{item.combo ? 'Từ ' : ''}{formatVnd(item.price)}</p>
       </div>
       <div className="flex shrink-0 flex-col items-end justify-end">
         {out ? (
           <span className="rounded-full bg-brick-soft px-3 py-1.5 text-xs font-bold text-brick">
             Tạm hết{soldOutUntil && soldOutUntil !== 'later' ? ` · có lại ${soldOutUntil}` : ''}
           </span>
+        ) : item.combo ? (
+          <button
+            onClick={onPickCombo}
+            aria-label={`Chọn ${item.name}`}
+            className="relative inline-flex min-h-11 items-center gap-1.5 rounded-full bg-wood-500 px-4 text-sm font-semibold text-white shadow-warm transition active:scale-95 hover:bg-wood-600"
+          >
+            <Plus className="size-4" /> Chọn
+            {qty > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-turmeric px-1 text-[11px] font-bold leading-5 text-wood-900">{qty}</span>}
+          </button>
         ) : qty === 0 ? (
           <button
             onClick={() => onQty(1)}

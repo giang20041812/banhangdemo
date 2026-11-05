@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, ChevronDown, LayoutGrid, MapPin, PencilRuler, Plus, QrCode, RotateCcw, UtensilsCrossed } from 'lucide-react'
+import { BookOpen, ChevronDown, LayoutGrid, MapPin, PencilRuler, Plus, QrCode, RotateCcw, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from './AppProvider'
 import { Button, Field, Modal, inputCls } from './ui'
@@ -12,6 +12,7 @@ const NAV = [
   { href: '/van-hanh', label: 'Vận hành', icon: LayoutGrid },
   { href: '/so-do', label: 'Sơ đồ bàn', icon: PencilRuler },
   { href: '/thuc-don', label: 'Thực đơn', icon: BookOpen },
+  { href: '/doanh-thu', label: 'Doanh thu', icon: TrendingUp },
   { href: '/qr', label: 'Mã QR', icon: QrCode },
 ]
 
@@ -87,7 +88,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
                     onClick={() => {
                       if (!window.confirm('Xóa toàn bộ dữ liệu demo và nạp lại dữ liệu mẫu?')) return
                       try {
-                        localStorage.removeItem('vqm-demo-db-v1')
+                        localStorage.removeItem('vqm-demo-db-v2')
                         localStorage.removeItem('vqm-branch')
                       } catch {}
                       window.location.reload()
@@ -156,7 +157,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label="Điều hướng chính"
-        className="wood-surface fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 pb-[env(safe-area-inset-bottom)] shadow-lift md:hidden"
+        className="wood-surface fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] shadow-lift md:hidden"
       >
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = path.startsWith(href)

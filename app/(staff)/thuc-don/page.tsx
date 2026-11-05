@@ -6,10 +6,11 @@ import clsx from 'clsx'
 import { useApp } from '@/components/AppProvider'
 import { useToast } from '@/components/Toast'
 import { AvailabilityRow, SoldOutDialog } from '@/components/menu/Availability'
-import { Button, Chip, Empty, Field, Modal, Switch, inputCls } from '@/components/ui'
+import { Button, Chip, Empty, Field, Modal, Stepper, Switch, inputCls } from '@/components/ui'
 import { DAY_LABELS, formatVnd, hhmm } from '@/lib/format'
 import { activeMenus, activeUnavailability } from '@/lib/menu-logic'
-import type { Category, Menu, MenuItem } from '@/lib/types'
+import { newGroupId } from '@/lib/combo'
+import type { Category, ComboDef, Menu, MenuItem } from '@/lib/types'
 
 type Tab = 'items' | 'menus' | 'cats' | 'schedule'
 
@@ -110,7 +111,8 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   if (!snap) return null
-  const valid = !!f.name?.trim() && Number(price) >= 0 && !uploading
+  const comboError = f.combo ? comboProblem(f.combo) : null
+  const valid = !!f.name?.trim() && Number(price) >= 0 && !uploading && !comboError
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -179,7 +181,7 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
           <input className={inputCls} value={f.name ?? ''} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Giá (đ)">
+          <Field label={f.combo ? 'Giá gốc combo (đ)' : 'Giá (đ)'}>
             <input className={inputCls} inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} />
           </Field>
           <Field label="Danh mục">
@@ -218,6 +220,19 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
         </Field>
         <div className="flex items-center justify-between rounded-xl bg-cream px-4 py-3">
           <div>
+            <p className="text-sm font-semibold text-wood-800">Đây là combo</p>
+            <p className="text-xs text-ink-soft">Combo gồm món cố định và các nhóm khách tự chọn (vd lẩu)</p>
+          </div>
+          <Switch
+            label="Combo"
+            checked={!!f.combo}
+            onChange={(v) => setF({ ...f, combo: v ? { fixed: [], groups: [] } : null })}
+          />
+        </div>
+        {f.combo && <ComboEditor combo={f.combo} onChange={(combo) => setF({ ...f, combo })} items={snap.items.filter((i) => !i.combo && i.id !== f.id)} />}
+        {comboError && <p role="alert" className="rounded-lg bg-brick-soft px-3 py-2 text-sm text-brick">{comboError}</p>}
+        <div className="flex items-center justify-between rounded-xl bg-cream px-4 py-3">
+          <div>
             <p className="text-sm font-semibold text-wood-800">Hiển thị trong thực đơn</p>
             <p className="text-xs text-ink-soft">Tắt để ẩn hẳn món (khác với báo hết món tạm thời)</p>
           </div>
@@ -225,6 +240,98 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
         </div>
       </div>
     </Modal>
+  )
+}
+
+function comboProblem(c: ComboDef): string | null {
+  if (c.fixed.length === 0 && c.groups.length === 0) return 'Combo cần ít nhất một món cố định hoặc một nhóm lựa chọn'
+  for (const f of c.fixed) if (!f.itemId) return 'Có món cố định chưa chọn món'
+  for (const g of c.groups) {
+    if (!g.name.trim()) return 'Có nhóm lựa chọn chưa đặt tên'
+    if (g.options.length === 0) return `Nhóm "${g.name}" chưa có lựa chọn nào`
+    if (g.options.some((o) => !o.itemId)) return `Nhóm "${g.name}" có lựa chọn chưa chọn món`
+    if (new Set(g.options.map((o) => o.itemId)).size !== g.options.length) return `Nhóm "${g.name}" có món bị trùng`
+    if (g.min < 0 || g.max < 1 || g.min > g.max) return `Nhóm "${g.name}": số chọn tối thiểu/tối đa không hợp lệ`
+    if (g.max > g.options.length) return `Nhóm "${g.name}": tối đa không được lớn hơn số lựa chọn (${g.options.length})`
+  }
+  return null
+}
+
+function ItemSelect({ items, value, onPick }: { items: MenuItem[]; value: string; onPick: (id: string) => void }) {
+  return (
+    <select className={clsx(inputCls, 'min-w-0 flex-1')} value={value} onChange={(e) => onPick(e.target.value)}>
+      <option value="">— Chọn món —</option>
+      {items.map((i) => <option key={i.id} value={i.id}>{i.name}{i.isActive ? '' : ' (ẩn)'}</option>)}
+    </select>
+  )
+}
+
+const toNum = (v: string) => Math.max(0, Math.floor(Number(v.replace(/\D/g, '')) || 0))
+
+function ComboEditor({ combo, onChange, items }: { combo: ComboDef; onChange: (c: ComboDef) => void; items: MenuItem[] }) {
+  const setGroup = (idx: number, patch: Partial<ComboDef['groups'][number]>) =>
+    onChange({ ...combo, groups: combo.groups.map((g, i) => (i === idx ? { ...g, ...patch } : g)) })
+  const setFixed = (idx: number, patch: Partial<ComboDef['fixed'][number]>) =>
+    onChange({ ...combo, fixed: combo.fixed.map((x, i) => (i === idx ? { ...x, ...patch } : x)) })
+
+  return (
+    <div className="space-y-4 rounded-2xl bg-white p-3 ring-1 ring-wood-200">
+      <p className="text-xs text-ink-soft">
+        Món thành phần (nước lẩu, đồ nhúng…) là các món bình thường trong thực đơn. Để khách không thấy chúng bán lẻ, hãy đặt giá 0 hoặc tắt &quot;Hiển thị&quot; — món ẩn vẫn dùng được trong combo.
+      </p>
+
+      <section className="space-y-2">
+        <h4 className="font-display text-sm font-semibold text-wood-800">Món cố định (luôn có)</h4>
+        {combo.fixed.map((f, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <ItemSelect items={items} value={f.itemId} onPick={(id) => setFixed(idx, { itemId: id })} />
+            <Stepper size="sm" min={1} value={f.qty} onChange={(q) => setFixed(idx, { qty: q })} />
+            <Button variant="ghost" size="sm" aria-label="Bỏ món cố định" onClick={() => onChange({ ...combo, fixed: combo.fixed.filter((_, i) => i !== idx) })}><Trash2 className="size-4" /></Button>
+          </div>
+        ))}
+        <Button size="sm" onClick={() => onChange({ ...combo, fixed: [...combo.fixed, { itemId: '', qty: 1 }] })}><Plus className="size-4" /> Thêm món cố định</Button>
+      </section>
+
+      <section className="space-y-3">
+        <h4 className="font-display text-sm font-semibold text-wood-800">Nhóm khách tự chọn</h4>
+        {combo.groups.map((g, gi) => (
+          <div key={g.id} className="space-y-2 rounded-xl bg-cream/70 p-3 ring-1 ring-wood-100">
+            <div className="flex items-center gap-2">
+              <input className={clsx(inputCls, 'flex-1')} placeholder="Tên nhóm (vd Nước lẩu)" value={g.name} onChange={(e) => setGroup(gi, { name: e.target.value })} />
+              <Button variant="ghost" size="sm" aria-label="Xóa nhóm" onClick={() => onChange({ ...combo, groups: combo.groups.filter((_, i) => i !== gi) })}><Trash2 className="size-4" /></Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Chọn tối thiểu">
+                <input className={inputCls} inputMode="numeric" value={g.min} onChange={(e) => setGroup(gi, { min: toNum(e.target.value) })} />
+              </Field>
+              <Field label="Chọn tối đa">
+                <input className={inputCls} inputMode="numeric" value={g.max} onChange={(e) => setGroup(gi, { max: toNum(e.target.value) })} />
+              </Field>
+            </div>
+            <ul className="space-y-2">
+              {g.options.map((o, oi) => (
+                <li key={oi} className="flex items-center gap-2">
+                  <ItemSelect items={items} value={o.itemId} onPick={(id) => setGroup(gi, { options: g.options.map((x, i) => (i === oi ? { ...x, itemId: id } : x)) })} />
+                  <input
+                    className={clsx(inputCls, 'w-24 shrink-0')}
+                    inputMode="numeric"
+                    aria-label="Phụ thu"
+                    placeholder="+đ"
+                    value={o.extra || ''}
+                    onChange={(e) => setGroup(gi, { options: g.options.map((x, i) => (i === oi ? { ...x, extra: toNum(e.target.value) } : x)) })}
+                  />
+                  <Button variant="ghost" size="sm" aria-label="Bỏ lựa chọn" onClick={() => setGroup(gi, { options: g.options.filter((_, i) => i !== oi) })}><Trash2 className="size-4" /></Button>
+                </li>
+              ))}
+            </ul>
+            <Button size="sm" onClick={() => setGroup(gi, { options: [...g.options, { itemId: '', extra: 0 }] })}><Plus className="size-4" /> Thêm lựa chọn</Button>
+          </div>
+        ))}
+        <Button size="sm" onClick={() => onChange({ ...combo, groups: [...combo.groups, { id: newGroupId(), name: '', min: 1, max: 1, options: [] }] })}>
+          <Plus className="size-4" /> Thêm nhóm lựa chọn
+        </Button>
+      </section>
+    </div>
   )
 }
 

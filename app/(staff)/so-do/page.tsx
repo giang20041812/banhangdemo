@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  Eraser, Hand, Info, PaintBucket, Plus, QrCode, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut,
+  Crown, Eraser, Hand, Info, PaintBucket, Plus, QrCode, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '@/components/AppProvider'
@@ -20,7 +20,7 @@ const sig = (t: LayoutTable[]) =>
   JSON.stringify(
     [...t]
       .sort((a, b) => a.id.localeCompare(b.id))
-      .map((x) => [x.id, x.code, x.seats, x.cells.map((c) => `${c.r},${c.c}`).sort()]),
+      .map((x) => [x.id, x.code, x.seats, x.kind, x.kind === 'vip' ? x.surcharge : 0, x.cells.map((c) => `${c.r},${c.c}`).sort()]),
   )
 
 export default function FloorEditorPage() {
@@ -280,6 +280,7 @@ export default function FloorEditorPage() {
             />
             <p className="mt-3 text-xs text-ink-soft">
               {draft.length} bàn · {draft.reduce((s, t) => s + t.seats, 0)} chỗ ngồi
+              {draft.some((t) => t.kind === 'vip') && <> · {draft.filter((t) => t.kind === 'vip').length} bàn VIP</>}
             </p>
           </div>
         </div>
@@ -344,6 +345,38 @@ export default function FloorEditorPage() {
                 <span className="text-sm font-semibold text-wood-700">Số chỗ ngồi</span>
                 <Stepper size="sm" value={selected.seats} min={1} max={200} onChange={(v) => patchSelected({ seats: v })} />
               </div>
+              <div>
+                <span className="mb-1.5 block text-sm font-semibold text-wood-700">Loại bàn</span>
+                <div role="radiogroup" aria-label="Loại bàn" className="grid grid-cols-2 gap-1 rounded-xl bg-cream p-1 ring-1 ring-wood-100">
+                  {([['normal', 'Thường'], ['vip', 'VIP']] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      role="radio"
+                      aria-checked={selected.kind === k}
+                      onClick={() => patchSelected({ kind: k })}
+                      className={clsx(
+                        'flex min-h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition',
+                        selected.kind === k
+                          ? k === 'vip' ? 'bg-turmeric text-wood-900 shadow-warm' : 'bg-wood-500 text-white shadow-warm'
+                          : 'text-wood-700 hover:bg-sand',
+                      )}
+                    >
+                      {k === 'vip' && <Crown className="size-4" />} {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {selected.kind === 'vip' && (
+                <Field label="Phụ thu bàn VIP (đ)" hint="Cộng thêm vào hóa đơn mỗi lượt khách ngồi bàn này">
+                  <input
+                    className={inputCls}
+                    inputMode="numeric"
+                    value={selected.surcharge ? new Intl.NumberFormat('vi-VN').format(selected.surcharge) : ''}
+                    placeholder="0"
+                    onChange={(e) => patchSelected({ surcharge: Number(e.target.value.replace(/\D/g, '')) || 0 })}
+                  />
+                </Field>
+              )}
               <p className="text-xs text-ink-soft">{selected.cells.length} ô</p>
               <div className="flex gap-2">
                 {savedIds.has(selected.id) ? (

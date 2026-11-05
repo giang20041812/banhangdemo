@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import {
-  AlertTriangle, ArrowRight, Check, ChefHat, Clock, ConciergeBell, Maximize2, Minimize2,
+  AlertTriangle, ArrowRight, Banknote, Check, ChefHat, Clock, ConciergeBell, Crown, Maximize2, Minimize2,
   MoreHorizontal, Plus, QrCode, Replace, Sparkles, Trash2, Undo2, UtensilsCrossed, X,
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -12,7 +12,8 @@ import { Button, Chip, Empty, Field, Modal, Stepper, inputCls } from '../ui'
 import { ItemPicker } from '../menu/ItemPicker'
 import { SoldOutDialog } from '../menu/Availability'
 import { liveItems, needsAttention } from '@/lib/derive'
-import { ago, minutesSince } from '@/lib/format'
+import { billOf } from '@/lib/billing'
+import { ago, formatVnd, minutesSince } from '@/lib/format'
 import { isUnavailable } from '@/lib/menu-logic'
 import { STATUS_LABEL, type MenuItem, type OrderItem, type OrderStatus } from '@/lib/types'
 import Link from 'next/link'
@@ -55,6 +56,8 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
   if (!snap || !table) return null
   const seqOf = (o: OrderItem) => snap.orders.find((x) => x.id === o.orderId)
   const pendingCount = items.filter((o) => o.status !== 'served').length
+  const bill = billOf(items, table)
+  const hasBill = bill.lines.length > 0
 
   // ---- thao tác
   async function move(ids: string[], to: OrderStatus) {
@@ -139,6 +142,11 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
             <span className="truncate text-sm text-wood-200">
               {floor?.name} · {table.seats} chỗ
             </span>
+            {table.kind === 'vip' && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-turmeric px-2 py-0.5 text-[11px] font-bold text-wood-900">
+                <Crown className="size-3" /> VIP{table.surcharge > 0 && <> +{formatVnd(table.surcharge)}</>}
+              </span>
+            )}
           </div>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-wood-200">
             {session ? (
@@ -168,7 +176,8 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
           <QrCode className="size-4" /> QR
         </Link>
         <Button variant="secondary" className="ml-auto" onClick={() => setClosing(true)} disabled={!session}>
-          <UtensilsCrossed className="size-4" /> Dọn bàn
+          {hasBill ? <Banknote className="size-4" /> : <UtensilsCrossed className="size-4" />}
+          {hasBill ? 'Thanh toán & dọn bàn' : 'Dọn bàn'}
         </Button>
       </div>
 
@@ -199,6 +208,7 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
                           </p>
                           <Chip tone="brick">Hết món</Chip>
                         </div>
+                        {o.detail && <p className="mt-1 whitespace-pre-line text-xs text-ink-soft">{o.detail}</p>}
                         {o.note && <p className="mt-1 text-xs text-ink-soft">“{o.note}”</p>}
                         <div className="mt-2.5 flex flex-wrap gap-2">
                           <Button size="sm" variant="primary" onClick={() => setReplacing(o)}>
@@ -376,32 +386,66 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
       <Modal
         open={closing}
         onClose={() => setClosing(false)}
-        title={`Dọn bàn ${table.code}?`}
+        title={hasBill ? `Thanh toán · Bàn ${table.code}` : `Dọn bàn ${table.code}?`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setClosing(false)}>Hủy</Button>
             <Button
               variant="primary"
               onClick={async () => {
-                await run(() => backend.closeSession(tableId))
+                const receipt = await run(async () => (await backend.closeSession(tableId)) ?? false)
+                if (receipt === undefined) return // lỗi đã được hiển thị bởi run()
                 setClosing(false)
                 onClose()
-                toast({ text: `Bàn ${table.code} đã trống`, tone: 'success' })
+                toast({
+                  text: receipt && receipt.total > 0 ? `Đã thu ${formatVnd(receipt.total)} · bàn ${table.code} đã trống` : `Bàn ${table.code} đã trống`,
+                  tone: 'success',
+                })
               }}
             >
-              Xác nhận dọn bàn
+              {hasBill ? 'Đã thu tiền – dọn bàn' : 'Xác nhận dọn bàn'}
             </Button>
           </>
         }
       >
-        <p className="text-sm leading-relaxed text-ink-soft">
-          Khách đã ra về và bàn sẵn sàng đón nhóm mới. Các món đã gọi sẽ được lưu lại và khách mới quét QR sẽ bắt đầu một lượt mới.
-          {pendingCount > 0 && (
-            <b className="mt-3 block rounded-lg bg-turmeric-soft px-3 py-2 text-[#8a6417]">
-              Còn {pendingCount} món chưa đưa lên bàn này.
-            </b>
+        <div className="space-y-4">
+          {hasBill ? (
+            <>
+              <ul className="divide-y divide-wood-100 rounded-xl bg-white px-3 ring-1 ring-wood-100">
+                {bill.lines.map((l) => (
+                  <li key={l.id} className="flex items-start gap-3 py-2.5 text-sm">
+                    <span className="mt-0.5 rounded-md bg-wood-100 px-1.5 text-xs font-bold text-wood-700">{l.qty}×</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold leading-snug">{l.name}</p>
+                      {l.detail && <p className="whitespace-pre-line text-xs text-ink-soft">{l.detail}</p>}
+                      {l.qty > 1 && <p className="text-xs text-ink-soft">{formatVnd(l.price)} / suất</p>}
+                    </div>
+                    <span className="shrink-0 font-semibold tabular-nums">{formatVnd(l.price * l.qty)}</span>
+                  </li>
+                ))}
+              </ul>
+              <dl className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><dt className="text-ink-soft">Tiền món</dt><dd className="tabular-nums">{formatVnd(bill.itemsTotal)}</dd></div>
+                {bill.surcharge > 0 && (
+                  <div className="flex justify-between"><dt className="flex items-center gap-1.5 text-ink-soft"><Crown className="size-3.5 text-[#b8862a]" /> Phụ thu bàn VIP</dt><dd className="tabular-nums">{formatVnd(bill.surcharge)}</dd></div>
+                )}
+                <div className="flex items-baseline justify-between border-t border-wood-200 pt-2">
+                  <dt className="font-display text-base font-bold text-wood-800">Tổng cộng</dt>
+                  <dd className="font-display text-2xl font-bold tabular-nums text-wood-800">{formatVnd(bill.total)}</dd>
+                </div>
+              </dl>
+              {pendingCount > 0 && (
+                <p className="rounded-lg bg-turmeric-soft px-3 py-2 text-sm font-semibold text-[#8a6417]">
+                  Còn {pendingCount} món chưa đưa lên bàn này. Vẫn tính vào hóa đơn.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm leading-relaxed text-ink-soft">
+              Bàn chưa có món nào tính tiền. Dọn bàn để đón nhóm khách mới; khách mới quét QR sẽ bắt đầu một lượt mới.
+            </p>
           )}
-        </p>
+        </div>
       </Modal>
     </section>
   )
@@ -454,6 +498,7 @@ function Card({
             <span className="mr-1 inline-block rounded-md bg-wood-100 px-1.5 text-wood-700">{o.qty}×</span>
             {o.name}
           </p>
+          {o.detail && <p className="mt-1 whitespace-pre-line rounded-md bg-cream px-2 py-1 text-xs text-wood-700">{o.detail}</p>}
           {o.note && <p className="mt-1 rounded-md bg-turmeric-soft px-2 py-1 text-xs text-[#7a5612]">{o.note}</p>}
           {o.replacedFromId && <p className="mt-1 text-[11px] text-ink-soft">↻ món được đổi</p>}
           <p className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-soft">
