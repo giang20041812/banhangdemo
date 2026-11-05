@@ -79,10 +79,10 @@ function notifySound(tableCode: string, body: string) {
   }
   // Giọng đọc thu sẵn (public/sounds): không phụ thuộc giọng tiếng Việt trên máy
   const num = parseInt(tableCode.replace(/\D/g, ''), 10)
-  const src = (n: string) => `/sounds/${n}.mp3`
-  const audio = new Audio(src(num >= 1 && num <= 40 ? `ban-${num}` : 'khach-goi-mon'))
+  const src = (n: string) => `/sounds/${n}.wav`
+  const audio = new Audio(src(num >= 1 && num <= 99 ? `ban-${num}` : 'khach-goi-mon'))
   audio.onerror = () => {
-    if (!audio.src.endsWith('khach-goi-mon.mp3')) void new Audio(src('khach-goi-mon')).play().catch(() => {})
+    if (!audio.src.endsWith('khach-goi-mon.wav')) void new Audio(src('khach-goi-mon')).play().catch(() => {})
   }
   setTimeout(() => void audio.play().catch(() => {}), 1000)
 }
