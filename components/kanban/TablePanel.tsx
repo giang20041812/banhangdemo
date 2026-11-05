@@ -59,7 +59,7 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
   const bill = billOf(items, table)
   const hasBill = bill.lines.length > 0
 
-  // ---- thao tác
+  // ---- t hao tác
   async function move(ids: string[], to: OrderStatus) {
     if (!ids.length) return
     const before = ids.map((id) => items.find((i) => i.id === id)).filter(Boolean) as OrderItem[]
@@ -251,7 +251,7 @@ export function TablePanel({ tableId, expanded, onToggleExpand, onClose }: Props
                         const dropped = JSON.parse(e.dataTransfer.getData('text/plain')) as string[]
                         const changed = dropped.filter((id) => items.find((i) => i.id === id)?.status !== col.id)
                         void move(changed, col.id)
-                      } catch {}
+                      } catch { }
                     }}
                     className={clsx(
                       'flex flex-col rounded-2xl bg-cream/80 p-2 ring-1 transition',
