@@ -181,6 +181,30 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
         return (
           <Fragment key={t.id}>
             {cellsEl}
+            {info.rank === 1 &&
+              t.cells.map((c) => {
+                const e = edgeFlags(c, own)
+                return (
+                  <div
+                    key={`next:${key(c)}`}
+                    className="pointer-events-none absolute z-10 animate-pulse-soft border-0 border-solid border-brick shadow-[0_0_14px_3px_rgb(190_70_45/0.55)]"
+                    style={{
+                      left: c.c * cell - (e.left ? 3 : 0),
+                      top: c.r * cell - (e.top ? 3 : 0),
+                      width: cell + (e.left ? 3 : 0) + (e.right ? 3 : 0),
+                      height: cell + (e.top ? 3 : 0) + (e.bottom ? 3 : 0),
+                      borderTopWidth: e.top ? 4 : 0,
+                      borderBottomWidth: e.bottom ? 4 : 0,
+                      borderLeftWidth: e.left ? 4 : 0,
+                      borderRightWidth: e.right ? 4 : 0,
+                      borderTopLeftRadius: e.top && e.left ? R + 4 : 0,
+                      borderTopRightRadius: e.top && e.right ? R + 4 : 0,
+                      borderBottomLeftRadius: e.bottom && e.left ? R + 4 : 0,
+                      borderBottomRightRadius: e.bottom && e.right ? R + 4 : 0,
+                    }}
+                  />
+                )
+              })}
             {selected &&
               t.cells.map((c) => {
                 const e = edgeFlags(c, own)
@@ -218,7 +242,10 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
             )}
             {!!info.rank && (
               <span
-                className="pointer-events-none absolute z-20 grid min-w-5 place-items-center rounded-md border-2 border-paper bg-brick px-1 text-[11px] font-bold leading-5 text-white"
+                className={clsx(
+                  'pointer-events-none absolute z-20 grid place-items-center rounded-md border-2 border-paper bg-brick font-bold text-white',
+                  info.rank === 1 ? 'min-w-7 animate-pulse-soft px-1.5 text-sm leading-6' : 'min-w-5 px-1 text-[11px] leading-5',
+                )}
                 style={{ left: topLeft.c * cell - 4, top: topLeft.r * cell - 6 }}
                 title={`Ra món thứ ${info.rank}`}
               >
