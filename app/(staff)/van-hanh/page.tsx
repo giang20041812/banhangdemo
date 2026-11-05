@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, BookOpen, LayoutGrid, PencilRuler, Users } from 'lucide-react'
+import { AlertTriangle, BookOpen, LayoutGrid, PencilRuler, Users, ZoomIn, ZoomOut } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '@/components/AppProvider'
 import { FloorGrid } from '@/components/floor/FloorGrid'
@@ -143,6 +143,10 @@ export default function OperationsPage() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center rounded-xl bg-cream ring-1 ring-wood-200">
+              <Button variant="ghost" onClick={() => pinch(1 / 1.25)} aria-label="Thu nhỏ"><ZoomOut className="size-[18px]" /></Button>
+              <Button variant="ghost" onClick={() => pinch(1.25)} aria-label="Phóng to"><ZoomIn className="size-[18px]" /></Button>
+            </div>
             <Button variant={tab === 'menu' && drawer ? 'primary' : 'secondary'} className="xl:hidden" onClick={() => { setTab('menu'); setDrawer(true) }}>
               <BookOpen className="size-4" /> Thực đơn {outItems > 0 && <span className="rounded-full bg-brick px-1.5 text-xs text-white">{outItems}</span>}
             </Button>
