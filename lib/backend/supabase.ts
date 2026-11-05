@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { token } from '../id'
+import { token, uid } from '../id'
+import { shrinkImage } from '../image'
 import { isUnavailable, sellableItems } from '../menu-logic'
 import type {
   Branch, Category, DiningTable, Floor, Menu, MenuItem, Order, OrderItem, OrderLine,
@@ -190,6 +191,13 @@ export function createSupabaseBackend(): Backend {
     },
     async deleteItem(id) {
       ok(await sb.from('menu_items').delete().eq('id', id))
+    },
+    async uploadItemImage(branchId, file) {
+      const blob = await shrinkImage(file)
+      const path = `${branchId}/${uid()}.jpg`
+      const { error } = await sb.storage.from('menu-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' })
+      if (error) throw new Error(error.message.includes('not found') ? 'Chưa tạo kho ảnh: chạy migration 0003 trong Supabase.' : error.message)
+      return sb.storage.from('menu-images').getPublicUrl(path).data.publicUrl
     },
     async saveMenu(m) {
       const row = {

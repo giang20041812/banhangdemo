@@ -37,6 +37,8 @@ export interface Backend {
   deleteCategory(id: string): Promise<void>
   saveItem(i: Omit<MenuItem, 'id'> & { id?: string }): Promise<MenuItem>
   deleteItem(id: string): Promise<void>
+  /** Tải ảnh món lên (tự thu nhỏ), trả về URL dùng cho `imageUrl` */
+  uploadItemImage(branchId: string, file: File): Promise<string>
   saveMenu(m: Omit<Menu, 'id'> & { id?: string }): Promise<Menu>
   deleteMenu(id: string): Promise<void>
 

@@ -1,4 +1,5 @@
 import { token, uid } from '../id'
+import { blobToDataUrl, shrinkImage } from '../image'
 import { isUnavailable, sellableItems } from '../menu-logic'
 import { seedBranch, seedDb, type Db } from '../seed'
 import type {
@@ -236,6 +237,10 @@ export function createDemoBackend(): Backend {
         db.items.push(n)
         return n
       })
+    },
+    async uploadItemImage(_branchId, file) {
+      // Demo lưu trong localStorage nên thu nhỏ hơn nhiều
+      return blobToDataUrl(await shrinkImage(file, 480, 0.7))
     },
     async deleteItem(id) {
       mutate((db) => {

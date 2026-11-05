@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, CalendarClock, Copy, Pencil, Plus, Trash2, UtensilsCrossed } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, CalendarClock, Copy, ImagePlus, Pencil, Plus, Trash2, UtensilsCrossed, X } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '@/components/AppProvider'
 import { useToast } from '@/components/Toast'
@@ -107,8 +107,25 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
   const toast = useToast()
   const [f, setF] = useState(initial)
   const [price, setPrice] = useState(String(initial.price ?? 0))
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   if (!snap) return null
-  const valid = !!f.name?.trim() && Number(price) >= 0
+  const valid = !!f.name?.trim() && Number(price) >= 0 && !uploading
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // cho phép chọn lại cùng một ảnh
+    if (!file) return
+    setUploading(true)
+    try {
+      const url = await backend.uploadItemImage(snap!.branch.id, file)
+      setF((p) => ({ ...p, imageUrl: url }))
+    } catch (err) {
+      toast({ text: err instanceof Error ? err.message : 'Không tải được ảnh', tone: 'warn' })
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function save() {
     const saved = await run(() =>
@@ -174,8 +191,29 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
         <Field label="Mô tả ngắn">
           <input className={inputCls} value={f.description ?? ''} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Hiện dưới tên món ở trang khách" />
         </Field>
-        <Field label="Liên kết ảnh (tuỳ chọn)">
-          <input className={inputCls} value={f.imageUrl ?? ''} onChange={(e) => setF({ ...f, imageUrl: e.target.value })} placeholder="https://…" />
+        <Field label="Ảnh món (tuỳ chọn)">
+          <div className="flex items-center gap-3">
+            <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-cream ring-1 ring-wood-100">
+              {f.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={f.imageUrl} alt="" className="size-full object-cover" />
+              ) : (
+                <ImagePlus className="size-6 text-wood-300" />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              {/* không đặt capture: điện thoại sẽ hỏi chụp ảnh mới hoặc chọn từ thư viện */}
+              <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPick} />
+              <Button size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                <ImagePlus className="size-4" /> {uploading ? 'Đang tải…' : f.imageUrl ? 'Đổi ảnh' : 'Chọn ảnh'}
+              </Button>
+              {f.imageUrl && !uploading && (
+                <Button size="sm" variant="ghost" onClick={() => setF({ ...f, imageUrl: null })}>
+                  <X className="size-4" /> Bỏ ảnh
+                </Button>
+              )}
+            </div>
+          </div>
         </Field>
         <div className="flex items-center justify-between rounded-xl bg-cream px-4 py-3">
           <div>
