@@ -10,7 +10,8 @@ import { TablePanel } from '@/components/kanban/TablePanel'
 import { MenuTab } from '@/components/menu/MenuTab'
 import { itemStatus } from '@/components/menu/Availability'
 import { Button, Empty } from '@/components/ui'
-import { TONE_LABEL, tableState, type TableTone } from '@/lib/derive'
+import { ago } from '@/lib/format'
+import { TONE_LABEL, serveQueue, tableState, type TableTone } from '@/lib/derive'
 
 type Tab = 'table' | 'menu'
 
@@ -42,6 +43,9 @@ export default function OperationsPage() {
     if (snap) for (const t of snap.tables) m.set(t.id, tableState(t, snap, now))
     return m
   }, [snap, now])
+
+  const queue = useMemo(() => (snap ? serveQueue(snap) : []), [snap])
+  const rankOf = useMemo(() => new Map(queue.map((q, i) => [q.tableId, i + 1])), [queue])
 
   if (!snap) {
     return <div className="grid h-full place-items-center"><div className="size-9 animate-spin rounded-full border-4 border-wood-200 border-t-wood-500" /></div>
@@ -139,6 +143,32 @@ export default function OperationsPage() {
           </div>
         </div>
 
+        {queue.length > 0 && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-wood-100 bg-cream/70 px-3 py-2 sm:px-4">
+            <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-wood-700">Thứ tự ra món</span>
+            <ol className="scroll-thin flex gap-1.5 overflow-x-auto">
+              {queue.map((q, i) => {
+                const t = snap.tables.find((x) => x.id === q.tableId)
+                if (!t) return null
+                return (
+                  <li key={q.tableId} className="shrink-0">
+                    <button
+                      onClick={() => { setFloorId(t.floorId); pick(t.id) }}
+                      className={clsx(
+                        'flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ring-1 transition hover:bg-sand',
+                        i === 0 ? 'bg-brick text-white ring-brick hover:bg-brick' : 'bg-white text-wood-800 ring-wood-200',
+                      )}
+                    >
+                      <span className="font-bold">#{i + 1}</span> {t.code}
+                      <span className="text-xs font-medium opacity-80">{q.pending} món · {ago(q.since, now)}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
+
         <div ref={mapRef} className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {floorTables.length === 0 ? (
             <div className="mx-auto max-w-md pt-10">
@@ -160,7 +190,7 @@ export default function OperationsPage() {
                 onTableClick={pick}
                 toneOf={(t) => {
                   const s = states.get(t.id)
-                  return { tone: s?.tone ?? 'empty', badge: s?.tone === 'empty' ? undefined : s?.pending }
+                  return { tone: s?.tone ?? 'empty', badge: s?.tone === 'empty' ? undefined : s?.pending, rank: rankOf.get(t.id) }
                 }}
               />
               <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-soft" aria-label="Chú thích màu bàn">
@@ -171,6 +201,7 @@ export default function OperationsPage() {
                   </li>
                 ))}
                 <li className="flex items-center gap-1.5"><Users className="size-3.5" /> Số trên bàn = món chưa đưa lên</li>
+                <li className="flex items-center gap-1.5"><span className="rounded bg-brick px-1 text-[10px] font-bold text-white">#1</span> Thứ tự ra món (gọi trước ra trước)</li>
               </ul>
             </div>
           )}

@@ -57,3 +57,25 @@ export const TONE_LABEL: Record<TableTone, string> = {
   ready: 'Có món chờ đưa',
   attention: 'Cần xử lý',
 }
+
+export interface QueueEntry {
+  tableId: string
+  /** Thời điểm món chưa lên cũ nhất của bàn */
+  since: string
+  pending: number
+}
+
+/** Thứ tự ra món: bàn có món chưa lên gọi sớm nhất đứng trước (vào trước ra trước). */
+export function serveQueue(snap: Snapshot): QueueEntry[] {
+  const m = new Map<string, QueueEntry>()
+  for (const o of snap.orderItems) {
+    if (o.status === 'served' || o.status === 'cancelled') continue
+    const e = m.get(o.tableId)
+    if (!e) m.set(o.tableId, { tableId: o.tableId, since: o.createdAt, pending: 1 })
+    else {
+      e.pending++
+      if (o.createdAt < e.since) e.since = o.createdAt
+    }
+  }
+  return [...m.values()].sort((a, b) => a.since.localeCompare(b.since))
+}

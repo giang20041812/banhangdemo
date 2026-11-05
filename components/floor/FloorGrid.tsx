@@ -34,7 +34,7 @@ interface Props {
   cols: number
   cell: number
   tables: GridTable[]
-  toneOf?: (t: GridTable) => { tone: TableTone; badge?: number }
+  toneOf?: (t: GridTable) => { tone: TableTone; badge?: number; rank?: number }
   selectedId?: string | null
   onTableClick?: (id: string) => void
   /** Chế độ vẽ: kéo để chọn nhiều ô liên tiếp */
@@ -176,6 +176,7 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
 
         // Badge ở góc trên-phải của bàn (ô hàng trên cùng, bên phải nhất) để không che mã bàn
         const topCell = t.cells.reduce((best, c) => (c.r < best.r || (c.r === best.r && c.c > best.c) ? c : best))
+        const topLeft = t.cells.reduce((best, c) => (c.r < best.r || (c.r === best.r && c.c < best.c) ? c : best))
         const R = Math.min(14, cell / 3)
         return (
           <Fragment key={t.id}>
@@ -213,6 +214,15 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
                 style={{ left: (topCell.c + 1) * cell - 14, top: topCell.r * cell - 6 }}
               >
                 {info.badge}
+              </span>
+            )}
+            {!!info.rank && (
+              <span
+                className="pointer-events-none absolute z-20 grid min-w-5 place-items-center rounded-md border-2 border-paper bg-brick px-1 text-[11px] font-bold leading-5 text-white"
+                style={{ left: topLeft.c * cell - 4, top: topLeft.r * cell - 6 }}
+                title={`Ra món thứ ${info.rank}`}
+              >
+                #{info.rank}
               </span>
             )}
           </Fragment>
