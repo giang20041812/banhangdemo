@@ -42,8 +42,23 @@ function getAudio(): AudioContext | null {
   }
 }
 
+/** Thông báo đẩy của hệ điều hành (hiện cả khi tab nằm nền / khóa màn hình điện thoại) */
+function showPush(tableCode: string, body: string) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+    const opts = { body, tag: 'vqm-order', icon: '/icon.png', requireInteraction: true } as NotificationOptions
+    const title = `Bàn ${tableCode} vừa gọi món`
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.ready.then((r) => r.showNotification(title, opts)).catch(() => new Notification(title, opts))
+    } else new Notification(title, opts)
+  } catch {
+    /* bỏ qua */
+  }
+}
+
 /** Chuông "ding-dong" + đọc to bằng tiếng Việt */
-function notifySound(tableCode: string) {
+function notifySound(tableCode: string, body: string) {
+  showPush(tableCode, body)
   const ctx = getAudio()
   if (ctx) {
     void ctx.resume().catch(() => {})
@@ -92,6 +107,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unlock = () => {
       void getAudio()?.resume().catch(() => {})
+      try {
+        if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission()
+        if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js')
+      } catch {}
       try {
         window.speechSynthesis?.getVoices()
       } catch {}
@@ -151,7 +170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const t = next.tables.find((x) => x.id === o.tableId)
           const n = next.orderItems.filter((i) => i.orderId === o.id).reduce((s, i) => s + i.qty, 0)
           toast({ text: `Bàn ${t?.code ?? ''} vừa gọi ${n} món (lượt ${o.seq})`, tone: 'info' })
-          notifySound(t?.code ?? '')
+          notifySound(t?.code ?? '', `Bàn ${t?.code ?? ''} vừa gọi ${n} món (lượt ${o.seq})`)
         }
       }
       seenOrders.current = ids
