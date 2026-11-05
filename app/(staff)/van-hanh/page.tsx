@@ -103,7 +103,7 @@ export default function OperationsPage() {
     <div className="relative flex h-full">
       {/* ======= Sơ đồ ======= */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-wood-100 bg-paper/90 px-3 py-2 backdrop-blur sm:px-4 sm:py-2.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-wood-100 bg-paper px-3 py-2 sm:px-4 sm:py-2.5">
           <div className="flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Tầng">
             {snap.floors.map((f) => {
               const st = floorStat(f.id)

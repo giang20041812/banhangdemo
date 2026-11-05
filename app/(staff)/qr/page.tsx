@@ -53,7 +53,7 @@ function QrInner() {
 
   return (
     <div className="scroll-thin h-full overflow-y-auto">
-      <div className="no-print sticky top-0 z-10 space-y-3 border-b border-wood-100 bg-paper/95 px-4 py-3 backdrop-blur">
+      <div className="no-print sticky top-0 z-10 space-y-3 border-b border-wood-100 bg-paper px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="mr-2 font-display text-xl font-semibold text-wood-800">Mã QR gọi món</h1>
           {only ? (

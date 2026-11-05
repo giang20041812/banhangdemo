@@ -233,13 +233,9 @@ export default function GuestPage() {
               </button>
             ))}
           </div>
-        </header>
-      }
-    >
-      {tab === 'menu' ? (
-        <>
-          {byCat.length > 1 && (
-            <div className="sticky top-[117px] z-10 border-b border-wood-100 bg-paper/95 backdrop-blur">
+          {/* Thanh danh mục nằm chung trong header dính: một lớp sticky, không phải đoán chiều cao header */}
+          {tab === 'menu' && byCat.length > 1 && (
+            <div className="border-b border-wood-100 bg-paper text-ink">
               <div className="scroll-thin mx-auto flex max-w-2xl gap-1.5 overflow-x-auto px-3 py-2">
                 {byCat.map(({ c }) => {
                   const k = c.id || 'other'
@@ -262,7 +258,11 @@ export default function GuestPage() {
               </div>
             </div>
           )}
-
+        </header>
+      }
+    >
+      {tab === 'menu' ? (
+        <>
           <div className="mx-auto w-full max-w-2xl space-y-6 px-3 pb-32 pt-4 min-[400px]:px-4">
             {removedNames.length > 0 && (
               <div role="alert" className="flex animate-pop items-start gap-3 rounded-2xl border border-brick/40 bg-brick-soft p-3.5 text-sm text-brick">
@@ -279,7 +279,7 @@ export default function GuestPage() {
             {byCat.map(({ c, items }) => {
               const k = c.id || 'other'
               return (
-                <section key={k} ref={(el) => { sectionRefs.current[k] = el }} className="scroll-mt-[170px]">
+                <section key={k} ref={(el) => { sectionRefs.current[k] = el }} className="scroll-mt-[calc(180px+env(safe-area-inset-top))]">
                   <h2 className="mb-2.5 font-display text-xl font-semibold text-wood-800">{c.name}</h2>
                   <ul className="space-y-2.5">
                     {items.map((item) => (
@@ -519,7 +519,7 @@ function GuestItem({
     <li className={clsx('flex gap-3 rounded-2xl bg-white p-3 shadow-warm min-[400px]:p-3.5 ring-1 transition', qty > 0 ? 'ring-wood-400' : 'ring-wood-100', out && 'bg-cream/70')}>
       {item.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.imageUrl} alt="" className={clsx('size-[72px] shrink-0 rounded-xl object-cover min-[400px]:size-20', out && 'grayscale')} />
+        <img src={item.imageUrl} alt="" width={80} height={80} loading="lazy" decoding="async" className={clsx('size-[72px] shrink-0 rounded-xl object-cover min-[400px]:size-20', out && 'grayscale')} />
       )}
       <div className="min-w-0 flex-1">
         <p className={clsx('font-semibold leading-snug', out && 'text-ink-soft')}>
