@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  Eraser, Hand, Info, Link2Off, PaintBucket, Plus, QrCode, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut,
+  Eraser, Hand, Info, PaintBucket, Plus, QrCode, Redo2, Save, Trash2, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from '@/components/AppProvider'
@@ -31,8 +31,6 @@ export default function FloorEditorPage() {
   const [past, setPast] = useState<LayoutTable[][]>([])
   const [future, setFuture] = useState<LayoutTable[][]>([])
   const [tool, setTool] = useState<Tool>('paint')
-  const [separate, setSeparate] = useState(false)
-  const [alt, setAlt] = useState(false)
   const [cell, setCell] = useState(44)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dim, setDim] = useState({ name: '', rows: 12, cols: 20 })
@@ -62,16 +60,6 @@ export default function FloorEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverSig])
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => e.key === 'Alt' && setAlt(true)
-    const up = (e: KeyboardEvent) => e.key === 'Alt' && setAlt(false)
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
-    }
-  }, [])
 
   useEffect(() => {
     if (!dirty) return
@@ -163,7 +151,7 @@ export default function FloorEditorPage() {
     if (tool === 'select') return
     const before = draft
     if (tool === 'paint') {
-      const { tables, events } = paint(draft, cells, { separate: separate || alt, reservedCodes: otherCodes, rows: dim.rows, cols: dim.cols }, ids)
+      const { tables, events } = paint(draft, cells, { reservedCodes: otherCodes, rows: dim.rows, cols: dim.cols }, ids)
       if (tables === draft || sig(tables) === sig(draft)) return
       commit(tables)
       message(events, before)
@@ -239,7 +227,6 @@ export default function FloorEditorPage() {
     { id: 'erase', label: 'Xóa ô', icon: Eraser, hint: 'Kéo để xóa ô khỏi bàn' },
     { id: 'select', label: 'Chọn bàn', icon: Hand, hint: 'Bấm vào bàn để sửa tên, số chỗ' },
   ]
-  const isSeparate = separate || alt
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-visible">
@@ -263,18 +250,6 @@ export default function FloorEditorPage() {
               </button>
             ))}
           </div>
-
-          <button
-            onClick={() => setSeparate((v) => !v)}
-            aria-pressed={isSeparate}
-            title="Giữ Alt khi vẽ, hoặc bật nút này: bàn mới nằm sát bàn cũ nhưng không ghép"
-            className={clsx(
-              'touch-target flex items-center gap-2 rounded-xl px-3 text-sm font-semibold ring-1 transition',
-              isSeparate ? 'bg-turmeric text-wood-900 ring-[#b8862a]' : 'bg-white text-wood-700 ring-wood-200 hover:bg-cream',
-            )}
-          >
-            <Link2Off className="size-4" /> Bàn riêng
-          </button>
 
           <div className="flex items-center gap-1">
             <Button variant="ghost" onClick={undo} disabled={!past.length} aria-label="Hoàn tác" title="Ctrl+Z"><Undo2 className="size-[18px]" /></Button>
@@ -402,7 +377,6 @@ export default function FloorEditorPage() {
           <ul className="list-disc space-y-1 pl-5 text-[13px]">
             <li>Kéo chuột (hoặc ngón tay) qua các ô để tạo bàn.</li>
             <li>Các ô <b>sát nhau</b> tự ghép thành một bàn; vẽ nối hai bàn sẽ gộp chúng lại.</li>
-            <li>Muốn bàn mới nằm sát bàn khác mà không ghép: giữ <kbd className="rounded bg-white px-1">Alt</kbd> hoặc bật <b>Bàn riêng</b>.</li>
             <li>Xóa ô giữa một bàn dài sẽ tự tách thành hai bàn.</li>
           </ul>
         </section>

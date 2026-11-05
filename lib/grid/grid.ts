@@ -82,8 +82,6 @@ export function nextCode(existing: Iterable<string>): string {
 }
 
 export interface PaintOptions {
-  /** true = luôn tạo bàn mới dù sát bàn khác (không ghép) */
-  separate?: boolean
   /** Các mã bàn đã dùng ở nơi khác (tầng khác) để không trùng */
   reservedCodes?: Iterable<string>
   rows: number
@@ -105,12 +103,10 @@ export function paint(
   for (const comp of components(fresh)) {
     const compKeys = new Set(comp.map(key))
     const touching = new Set<string>()
-    if (!opts.separate) {
-      for (const cell of comp) {
-        for (const [dr, dc] of NEIGHBORS) {
-          const id = occ.get(key({ r: cell.r + dr, c: cell.c + dc }))
-          if (id) touching.add(id)
-        }
+    for (const cell of comp) {
+      for (const [dr, dc] of NEIGHBORS) {
+        const id = occ.get(key({ r: cell.r + dr, c: cell.c + dc }))
+        if (id) touching.add(id)
       }
     }
     const touched = result.filter((t) => touching.has(t.id))

@@ -34,10 +34,11 @@ describe('paint', () => {
     expect(events[0]).toMatchObject({ type: 'merged', into: 'B01' })
   })
 
-  it('chế độ separate không ghép dù sát nhau', () => {
+  it('ô vẽ sát bàn có sẵn luôn được ghép vào bàn đó', () => {
     const a = paint([], cells([0, 0]), opts, ids).tables
-    const { tables } = paint(a, cells([0, 1]), { ...opts, separate: true }, ids)
-    expect(tables).toHaveLength(2)
+    const { tables } = paint(a, cells([0, 1]), opts, ids)
+    expect(tables).toHaveLength(1)
+    expect(tables[0].cells).toHaveLength(2)
   })
 
   it('bỏ qua ô đã thuộc bàn và ô ngoài lưới', () => {
