@@ -94,12 +94,14 @@ export function Stepper({
   min = 0,
   max = 99,
   size = 'md',
+  disabled = false,
 }: {
   value: number
   onChange: (v: number) => void
   min?: number
   max?: number
   size?: 'sm' | 'md'
+  disabled?: boolean
 }) {
   const s = size === 'sm' ? 'size-9' : 'size-10'
   return (
@@ -107,7 +109,7 @@ export function Stepper({
       <button
         aria-label="Giảm"
         onClick={() => onChange(Math.max(min, value - 1))}
-        disabled={value <= min}
+        disabled={disabled || value <= min}
         className={clsx(s, 'grid place-items-center rounded-lg text-wood-700 transition hover:bg-sand active:scale-90 disabled:opacity-30')}
       >
         <Minus className="size-4" />
@@ -116,7 +118,7 @@ export function Stepper({
       <button
         aria-label="Tăng"
         onClick={() => onChange(Math.min(max, value + 1))}
-        disabled={value >= max}
+        disabled={disabled || value >= max}
         className={clsx(s, 'grid place-items-center rounded-lg bg-wood-500 text-white transition hover:bg-wood-600 active:scale-90 disabled:opacity-30')}
       >
         <Plus className="size-4" />

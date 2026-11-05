@@ -68,6 +68,21 @@ export default function FloorEditorPage() {
     return () => window.removeEventListener('beforeunload', h)
   }, [dirty])
 
+  // Bàn đang có khách: khóa, không cho sửa hay xóa
+  const busyIds = useMemo(() => new Set((snap?.sessions ?? []).map((s) => s.tableId)), [snap])
+  const busyKey = (t: LayoutTable) => JSON.stringify([t.code, t.seats, t.kind, t.kind === 'vip' ? t.surcharge : 0, t.cells.map((c) => `${c.r},${c.c}`).sort()])
+  /** Có bàn đang phục vụ nào bị đổi/mất khi chuyển từ `from` sang `to` không */
+  const hitsBusy = useCallback(
+    (from: LayoutTable[], to: LayoutTable[]) =>
+      from.some((t) => {
+        if (!busyIds.has(t.id)) return false
+        const n = to.find((u) => u.id === t.id)
+        return !n || busyKey(n) !== busyKey(t)
+      }),
+    [busyIds],
+  )
+  const BUSY_MSG = 'Bàn đang có khách, không thể sửa hoặc xóa'
+
   const otherCodes = useMemo(
     () => (snap && floor ? snap.tables.filter((t) => t.floorId !== floor.id).map((t) => t.code) : []),
     [snap, floor],
@@ -153,11 +168,13 @@ export default function FloorEditorPage() {
     if (tool === 'paint') {
       const { tables, events } = paint(draft, cells, { reservedCodes: otherCodes, rows: dim.rows, cols: dim.cols }, ids)
       if (tables === draft || sig(tables) === sig(draft)) return
+      if (hitsBusy(draft, tables)) return void toast({ text: BUSY_MSG, tone: 'warn' })
       commit(tables)
       message(events, before)
     } else {
       const { tables, events } = erase(draft, cells, { reservedCodes: otherCodes }, ids)
       if (sig(tables) === sig(draft)) return
+      if (hitsBusy(draft, tables)) return void toast({ text: BUSY_MSG, tone: 'warn' })
       commit(tables)
       message(events, before)
     }
@@ -166,7 +183,11 @@ export default function FloorEditorPage() {
   function resize(rows: number, cols: number) {
     const outside: Cell[] = []
     for (const t of draft) for (const c of t.cells) if (c.r >= rows || c.c >= cols) outside.push(c)
-    if (outside.length) commit(erase(draft, outside, { reservedCodes: otherCodes }, ids).tables)
+    if (outside.length) {
+      const next = erase(draft, outside, { reservedCodes: otherCodes }, ids).tables
+      if (hitsBusy(draft, next)) return void toast({ text: BUSY_MSG, tone: 'warn' })
+      commit(next)
+    }
     setDim((d) => ({ ...d, rows, cols }))
   }
 
@@ -178,8 +199,10 @@ export default function FloorEditorPage() {
   const anyClash = draft.some((t) => draft.some((u) => u.id !== t.id && u.code.toLowerCase() === t.code.toLowerCase()))
   const savedIds = new Set(saved.map((t) => t.id))
 
+  const selectedBusy = !!selected && busyIds.has(selected.id)
+
   function patchSelected(p: Partial<LayoutTable>) {
-    if (!selected) return
+    if (!selected || selectedBusy) return
     commit(draft.map((t) => (t.id === selected.id ? { ...t, ...p } : t)))
   }
 
@@ -189,10 +212,10 @@ export default function FloorEditorPage() {
       toast({ text: 'Mã bàn bị trùng hoặc để trống, hãy sửa trước khi lưu', tone: 'warn' })
       return
     }
-    const keep = new Set(draft.map((t) => t.id))
-    const lost = saved.filter((t) => !keep.has(t.id))
-    const busy = lost.filter((t) => snap!.sessions.some((s) => s.tableId === t.id))
-    if (busy.length && !window.confirm(`Bàn ${busy.map((t) => t.code).join(', ')} đang có khách. Xóa bàn sẽ mất các món đã gọi. Vẫn lưu?`)) return
+    if (hitsBusy(saved, draft)) {
+      toast({ text: `${BUSY_MSG} (${saved.filter((t) => busyIds.has(t.id) && !draft.some((u) => u.id === t.id && busyKey(u) === busyKey(t))).map((t) => t.code).join(', ')})`, tone: 'warn' })
+      return
+    }
     setSaving(true)
     const ok = await run(async () => {
       if (dim.name.trim() !== floor.name || dim.rows !== floor.rows || dim.cols !== floor.cols)
@@ -321,7 +344,14 @@ export default function FloorEditorPage() {
               <Stepper size="sm" value={dim.cols} min={4} max={40} onChange={(v) => resize(dim.rows, v)} />
             </div>
             {snap.floors.length > 1 && (
-              <Button variant="danger" size="sm" className="w-full" onClick={() => setDeleting(true)}>
+              <Button
+                variant="danger"
+                size="sm"
+                className="w-full"
+                disabled={saved.some((t) => busyIds.has(t.id))}
+                title={saved.some((t) => busyIds.has(t.id)) ? 'Tầng còn bàn đang có khách' : undefined}
+                onClick={() => setDeleting(true)}
+              >
                 <Trash2 className="size-4" /> Xóa tầng này
               </Button>
             )}
@@ -332,18 +362,24 @@ export default function FloorEditorPage() {
           <h3 className="mb-2 font-display text-sm font-semibold uppercase tracking-wide text-wood-500">Bàn đang chọn</h3>
           {selected ? (
             <div className="space-y-3 rounded-2xl bg-white p-3 ring-1 ring-wood-100">
+              {selectedBusy && (
+                <p className="rounded-xl bg-turmeric/20 px-3 py-2 text-xs font-medium text-wood-800">
+                  Bàn đang có khách — không thể sửa hoặc xóa cho đến khi khách thanh toán.
+                </p>
+              )}
               <Field label="Mã bàn">
                 <input
                   className={clsx(inputCls, codeClash && 'ring-2 ring-brick')}
                   value={selected.code}
                   onChange={(e) => patchSelected({ code: e.target.value })}
+                  disabled={selectedBusy}
                   aria-invalid={codeClash}
                 />
                 {codeClash && <span className="mt-1 block text-xs text-brick">Mã này đã được dùng</span>}
               </Field>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-wood-700">Số chỗ ngồi</span>
-                <Stepper size="sm" value={selected.seats} min={1} max={200} onChange={(v) => patchSelected({ seats: v })} />
+                <Stepper size="sm" value={selected.seats} min={1} max={200} disabled={selectedBusy} onChange={(v) => patchSelected({ seats: v })} />
               </div>
               <div>
                 <span className="mb-1.5 block text-sm font-semibold text-wood-700">Loại bàn</span>
@@ -354,6 +390,7 @@ export default function FloorEditorPage() {
                       role="radio"
                       aria-checked={selected.kind === k}
                       onClick={() => patchSelected({ kind: k })}
+                      disabled={selectedBusy}
                       className={clsx(
                         'flex min-h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition',
                         selected.kind === k
@@ -371,6 +408,7 @@ export default function FloorEditorPage() {
                   <input
                     className={inputCls}
                     inputMode="numeric"
+                    disabled={selectedBusy}
                     value={selected.surcharge ? new Intl.NumberFormat('vi-VN').format(selected.surcharge) : ''}
                     placeholder="0"
                     onChange={(e) => patchSelected({ surcharge: Number(e.target.value.replace(/\D/g, '')) || 0 })}
@@ -389,6 +427,7 @@ export default function FloorEditorPage() {
                 <Button
                   size="sm"
                   variant="danger"
+                  disabled={selectedBusy}
                   onClick={() => {
                     commit(draft.filter((t) => t.id !== selected.id))
                     setSelectedId(null)
