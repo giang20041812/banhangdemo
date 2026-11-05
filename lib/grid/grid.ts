@@ -1,4 +1,4 @@
-import type { Cell } from '../types'
+import type { Cell, TableKind } from '../types'
 
 /**
  * Logic thuần của trình vẽ sơ đồ: chọn các ô sát nhau thì tự ghép thành bàn.
@@ -11,6 +11,9 @@ export interface LayoutTable {
   seats: number
   cells: Cell[]
   qrToken: string
+  kind: TableKind
+  /** Phụ thu bàn VIP (VND) */
+  surcharge: number
 }
 
 export type LayoutEvent =
@@ -119,6 +122,8 @@ export function paint(
         seats: comp.length * SEATS_PER_CELL,
         cells: comp,
         qrToken: ids.newToken(),
+        kind: 'normal',
+        surcharge: 0,
       }
       result.push(t)
       for (const c of comp) occ.set(key(c), t.id)
@@ -175,6 +180,8 @@ export function erase(
           seats: comp.length * SEATS_PER_CELL,
           cells: comp,
           qrToken: ids.newToken(),
+          kind: t.kind,
+          surcharge: t.surcharge,
         })
         created.push(code)
       }

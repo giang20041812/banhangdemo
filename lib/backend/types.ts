@@ -9,6 +9,7 @@ import type {
   OrderStatus,
   PlaceOrderResult,
   PublicSnapshot,
+  Receipt,
   Snapshot,
 } from '../types'
 
@@ -61,8 +62,12 @@ export interface Backend {
   updateOrderItem(id: string, patch: { qty?: number; note?: string }): Promise<void>
   /** Đổi món khách đã gọi sang món khác (giữ số lượng, ghi chú) */
   replaceOrderItem(id: string, newItemId: string): Promise<void>
-  /** Khách rời bàn: đóng phiên hiện tại, bàn về trạng thái trống */
-  closeSession(tableId: string): Promise<void>
+  /** Thanh toán & dọn bàn: đóng phiên hiện tại, ghi hóa đơn (món + phụ thu VIP). Trả về hóa đơn, null nếu bàn không có phiên mở */
+  closeSession(tableId: string): Promise<Receipt | null>
+
+  // ---- Doanh thu
+  /** Hóa đơn đã thanh toán có closedAt trong [fromIso, toIso) */
+  loadRevenue(branchId: string, fromIso: string, toIso: string): Promise<Receipt[]>
 
   // ---- Khách (quét QR, không đăng nhập)
   loadPublic(token: string): Promise<PublicSnapshot | null>

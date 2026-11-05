@@ -7,7 +7,7 @@ const menu = (p: Partial<Menu>): Menu => ({
   validFrom: null, validTo: null, priority: 0, itemIds: [], ...p,
 })
 const item = (id: string, active = true): MenuItem => ({
-  id, branchId: 'b', categoryId: null, name: id, description: '', price: 1, imageUrl: null, isActive: active,
+  id, branchId: 'b', categoryId: null, name: id, description: '', price: 1, imageUrl: null, isActive: active, combo: null,
 })
 // 2026-11-05 là thứ Năm. 05:00Z = 12:00 giờ VN
 const noon = new Date('2026-11-05T05:00:00Z')

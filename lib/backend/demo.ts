@@ -1,13 +1,15 @@
 import { token, uid } from '../id'
+import { billOf } from '../billing'
+import { comboDetail, comboUnitPrice, lineError } from '../combo'
 import { blobToDataUrl, shrinkImage } from '../image'
 import { isUnavailable, sellableItems } from '../menu-logic'
 import { seedBranch, seedDb, type Db } from '../seed'
 import type {
-  Branch, DiningTable, Floor, Menu, OrderLine, OrderStatus, PlaceOrderResult, PublicSnapshot, Snapshot,
+  Branch, DiningTable, Floor, Menu, OrderLine, Receipt, OrderStatus, PlaceOrderResult, PublicSnapshot, Snapshot,
 } from '../types'
 import type { Backend, Unsub } from './types'
 
-const KEY = 'vqm-demo-db-v1'
+const KEY = 'vqm-demo-db-v2'
 const CHANNEL = 'vqm-demo-sync'
 
 /**
@@ -80,6 +82,8 @@ export function createDemoBackend(): Backend {
     for (const line of lines) {
       const item = items.find((i) => i.id === line.itemId)
       if (!item || line.qty < 1) continue
+      const bad = lineError(item, line)
+      if (bad) throw new Error(bad)
       if (!sellable.has(item.id) || isUnavailable(item.id, un, now)) rejected.push({ itemId: item.id, name: item.name })
       else accepted.push({ item, line })
     }
@@ -98,7 +102,7 @@ export function createDemoBackend(): Backend {
     for (const { item, line } of accepted) {
       db.orderItems.push({
         id: uid(), orderId: order.id, sessionId: session.id, tableId: table.id, branchId: table.branchId,
-        itemId: item.id, name: item.name, price: item.price,
+        itemId: item.id, name: item.name, price: comboUnitPrice(item, line.choices), detail: comboDetail(item, line.choices, items),
         qty: Math.min(99, Math.max(1, Math.floor(line.qty))), note: (line.note ?? '').slice(0, 200),
         status: 'new', replacedFromId: null, createdAt: nowIso(), servedAt: null,
       })
@@ -322,16 +326,28 @@ export function createDemoBackend(): Backend {
         if (!old || !item) return
         old.status = 'cancelled'
         db.orderItems.push({
-          ...old, id: uid(), itemId: item.id, name: item.name, price: item.price,
+          ...old, id: uid(), itemId: item.id, name: item.name, price: item.price, detail: '',
           status: 'new', replacedFromId: old.id, createdAt: nowIso(), servedAt: null,
         })
       })
     },
     async closeSession(tableId) {
-      mutate((db) => {
+      return mutate((db) => {
         const s = openSession(db, tableId)
-        if (s) s.closedAt = nowIso()
+        const table = db.tables.find((t) => t.id === tableId)
+        if (!s || !table) return null
+        const bill = billOf(db.orderItems.filter((o) => o.sessionId === s.id), table)
+        s.closedAt = nowIso()
+        const r: Receipt = {
+          id: s.id, branchId: s.branchId, tableId, tableCode: table.code, tableKind: table.kind, openedAt: s.openedAt,
+          closedAt: s.closedAt, itemsTotal: bill.itemsTotal, surcharge: bill.surcharge, total: bill.total,
+        }
+        db.receipts.push(r)
+        return r
       })
+    },
+    async loadRevenue(branchId, fromIso, toIso) {
+      return read().receipts.filter((r) => r.branchId === branchId && r.closedAt >= fromIso && r.closedAt < toIso)
     },
 
     async loadPublic(tok) {

@@ -52,7 +52,7 @@ export default function FloorEditorPage() {
   const serverSig = sig(saved) + (floor ? `${floor.id}|${floor.name}|${floor.rows}|${floor.cols}` : '')
   useEffect(() => {
     if (!floor) return
-    setDraft(saved.map((t) => ({ id: t.id, code: t.code, seats: t.seats, cells: t.cells, qrToken: t.qrToken })))
+    setDraft(saved.map((t) => ({ id: t.id, code: t.code, seats: t.seats, cells: t.cells, qrToken: t.qrToken, kind: t.kind, surcharge: t.surcharge })))
     setDim({ name: floor.name, rows: floor.rows, cols: floor.cols })
     setPast([])
     setFuture([])

@@ -1,10 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { token, uid } from '../id'
 import { shrinkImage } from '../image'
+import { billOf } from '../billing'
+import { comboDetail, comboUnitPrice, lineError } from '../combo'
 import { isUnavailable, sellableItems } from '../menu-logic'
 import type {
   Branch, Category, DiningTable, Floor, Menu, MenuItem, Order, OrderItem, OrderLine,
-  PlaceOrderResult, PublicSnapshot, Session, Snapshot, Unavailability,
+  PlaceOrderResult, PublicSnapshot, Receipt, Session, Snapshot, Unavailability,
 } from '../types'
 import type { Backend, Unsub } from './types'
 
@@ -16,11 +18,17 @@ const mBranch = (r: Row): Branch => ({ id: r.id, name: r.name, address: r.addres
 const mFloor = (r: Row): Floor => ({ id: r.id, branchId: r.branch_id, name: r.name, rows: r.rows, cols: r.cols, sort: r.sort })
 const mTable = (r: Row): DiningTable => ({
   id: r.id, floorId: r.floor_id, branchId: r.branch_id, code: r.code, seats: r.seats, cells: r.cells ?? [], qrToken: r.qr_token,
+  kind: r.kind === 'vip' ? 'vip' : 'normal', surcharge: r.surcharge ?? 0,
 })
 const mCategory = (r: Row): Category => ({ id: r.id, branchId: r.branch_id, name: r.name, sort: r.sort })
 const mItem = (r: Row): MenuItem => ({
   id: r.id, branchId: r.branch_id, categoryId: r.category_id, name: r.name, description: r.description ?? '',
-  price: r.price, imageUrl: r.image_url, isActive: r.is_active,
+  price: r.price, imageUrl: r.image_url, isActive: r.is_active, combo: r.combo ?? null,
+})
+const mReceipt = (r: Row): Receipt => ({
+  id: r.id, branchId: r.branch_id, tableId: r.table_id, tableCode: r.table_code ?? '?',
+  tableKind: r.table_kind === 'vip' ? 'vip' : 'normal', openedAt: r.opened_at, closedAt: r.closed_at,
+  itemsTotal: r.items_total ?? 0, surcharge: r.surcharge ?? 0, total: r.total ?? 0,
 })
 const mMenu = (r: Row): Menu => ({
   id: r.id, branchId: r.branch_id, name: r.name, days: r.days ?? [],
@@ -38,7 +46,7 @@ const mOrder = (r: Row): Order => ({
 })
 const mOrderItem = (r: Row): OrderItem => ({
   id: r.id, orderId: r.order_id, sessionId: r.session_id, tableId: r.table_id, branchId: r.branch_id, itemId: r.item_id,
-  name: r.name, price: r.price, qty: r.qty, note: r.note ?? '', status: r.status, replacedFromId: r.replaced_from_id,
+  name: r.name, price: r.price, qty: r.qty, note: r.note ?? '', detail: r.detail ?? '', status: r.status, replacedFromId: r.replaced_from_id,
   createdAt: r.created_at, servedAt: r.served_at,
 })
 
@@ -51,6 +59,7 @@ function ok<T>(res: { data: T; error: { message: string } | null }): NonNullable
 const FRIENDLY: Record<string, string> = {
   rate_limited: 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút.',
   invalid_token: 'Mã QR không hợp lệ hoặc đã bị thay thế.',
+  invalid_combo: 'Lựa chọn combo không hợp lệ, vui lòng chọn lại.',
 }
 function friendly(message: string) {
   for (const k of Object.keys(FRIENDLY)) if (message.includes(k)) return FRIENDLY[k]
@@ -161,6 +170,7 @@ export function createSupabaseBackend(): Backend {
           await sb.from('dining_tables').upsert(
             tables.map((t) => ({
               id: t.id, branch_id: floor.branch_id, floor_id: floorId, code: t.code, seats: t.seats, cells: t.cells, qr_token: t.qrToken,
+              kind: t.kind, surcharge: t.kind === 'vip' ? t.surcharge : 0,
             })),
             { onConflict: 'id' },
           ),
@@ -184,7 +194,7 @@ export function createSupabaseBackend(): Backend {
     async saveItem(i) {
       const row = {
         branch_id: i.branchId, category_id: i.categoryId, name: i.name, description: i.description,
-        price: i.price, image_url: i.imageUrl, is_active: i.isActive,
+        price: i.price, image_url: i.imageUrl, is_active: i.isActive, combo: i.combo,
       }
       const q = i.id ? sb.from('menu_items').update(row).eq('id', i.id) : sb.from('menu_items').insert(row)
       return mItem(ok(await q.select().single()))
@@ -253,6 +263,8 @@ export function createSupabaseBackend(): Backend {
       for (const line of lines) {
         const item = all.find((i) => i.id === line.itemId)
         if (!item || line.qty < 1) continue
+        const bad = lineError(item, line)
+        if (bad) throw new Error(bad)
         if (!sellable.has(item.id) || isUnavailable(item.id, un, now)) rejected.push({ itemId: item.id, name: item.name })
         else accepted.push({ item, line })
       }
@@ -274,7 +286,8 @@ export function createSupabaseBackend(): Backend {
         await sb.from('order_items').insert(
           accepted.map(({ item, line }) => ({
             branch_id: table.branch_id, order_id: order.id, session_id: session.id, table_id: tableId, item_id: item.id,
-            name: item.name, price: item.price, qty: Math.min(99, Math.max(1, Math.floor(line.qty))), note: (line.note ?? '').slice(0, 200),
+            name: item.name, price: comboUnitPrice(item, line.choices), detail: comboDetail(item, line.choices, all),
+            qty: Math.min(99, Math.max(1, Math.floor(line.qty))), note: (line.note ?? '').slice(0, 200),
           })),
         ),
       )
@@ -303,7 +316,39 @@ export function createSupabaseBackend(): Backend {
       )
     },
     async closeSession(tableId) {
-      ok(await sb.from('table_sessions').update({ closed_at: nowIso() }).eq('table_id', tableId).is('closed_at', null))
+      const session = (await sb.from('table_sessions').select('*').eq('table_id', tableId).is('closed_at', null).maybeSingle()).data
+      const table = mTable(ok(await sb.from('dining_tables').select('*').eq('id', tableId).single()))
+      if (!session) return null
+      const items = ok(await sb.from('order_items').select('*').eq('session_id', session.id)).map(mOrderItem)
+      const bill = billOf(items, table)
+      const row = ok(
+        await sb
+          .from('table_sessions')
+          .update({
+            closed_at: nowIso(), table_code: table.code, table_kind: table.kind,
+            items_total: bill.itemsTotal, surcharge: bill.surcharge, total: bill.total,
+          })
+          .eq('id', session.id)
+          .is('closed_at', null)
+          .select()
+          .single(),
+      )
+      return mReceipt(row)
+    },
+    async loadRevenue(branchId, fromIso, toIso) {
+      const rows = ok(
+        await sb
+          .from('table_sessions')
+          .select('*')
+          .eq('branch_id', branchId)
+          .not('closed_at', 'is', null)
+          .not('total', 'is', null)
+          .gte('closed_at', fromIso)
+          .lt('closed_at', toIso)
+          .order('closed_at')
+          .limit(20000),
+      )
+      return rows.map(mReceipt)
     },
 
     async loadPublic(tok): Promise<PublicSnapshot | null> {

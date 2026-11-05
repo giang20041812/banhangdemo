@@ -1,6 +1,6 @@
 import { token, uid } from './id'
 import type {
-  Branch, Category, DiningTable, Floor, Menu, MenuItem, Order, OrderItem, Session, Unavailability,
+  Branch, Category, DiningTable, Floor, Menu, MenuItem, Order, OrderItem, Receipt, Session, Unavailability,
 } from './types'
 
 export interface Db {
@@ -14,11 +14,13 @@ export interface Db {
   sessions: Session[]
   orders: Order[]
   orderItems: OrderItem[]
+  /** Hóa đơn đã thanh toán (nguồn báo cáo doanh thu) */
+  receipts: Receipt[]
 }
 
 export const emptyDb = (): Db => ({
   branches: [], floors: [], tables: [], categories: [], items: [], menus: [],
-  unavailability: [], sessions: [], orders: [], orderItems: [],
+  unavailability: [], sessions: [], orders: [], orderItems: [], receipts: [],
 })
 
 const rect = (r0: number, c0: number, h: number, w: number) => {
@@ -41,7 +43,7 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
 
   const mk = (floor: Floor, code: string, cells: { r: number; c: number }[], seats?: number): DiningTable => {
     const t: DiningTable = {
-      id: uid(), floorId: floor.id, branchId: b, code, cells, seats: seats ?? cells.length * 2, qrToken: token(),
+      id: uid(), floorId: floor.id, branchId: b, code, cells, seats: seats ?? cells.length * 2, qrToken: token(), kind: 'normal', surcharge: 0,
     }
     db.tables.push(t)
     return t
@@ -54,8 +56,8 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
   mk(f1, 'B06', [...rect(5, 9, 1, 3), ...rect(6, 9, 1, 1)]) // bàn hình chữ L
   mk(f1, 'B07', rect(9, 2, 2, 3))
   mk(f1, 'B08', rect(9, 8, 2, 2))
-  mk(f2, 'B09', rect(2, 2, 2, 4))
-  mk(f2, 'B10', rect(2, 9, 2, 2))
+  Object.assign(mk(f2, 'B09', rect(2, 2, 2, 4)), { kind: 'vip', surcharge: 200000 })
+  Object.assign(mk(f2, 'B10', rect(2, 9, 2, 2)), { kind: 'vip', surcharge: 100000 })
   mk(f2, 'B11', rect(6, 3, 2, 2))
 
   const cat = (n: string, sort: number): Category => {
@@ -69,7 +71,7 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
   const doUong = cat('Đồ uống', 3)
 
   const it = (c: Category, name: string, price: number, description = ''): MenuItem => {
-    const i: MenuItem = { id: uid(), branchId: b, categoryId: c.id, name, price, description, imageUrl: null, isActive: true }
+    const i: MenuItem = { id: uid(), branchId: b, categoryId: c.id, name, price, description, imageUrl: null, isActive: true, combo: null }
     db.items.push(i)
     return i
   }
@@ -86,6 +88,32 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
   const tra = it(doUong, 'Trà đá', 5000)
   const nuocMia = it(doUong, 'Nước mía', 20000)
   const biaHoi = it(doUong, 'Bia hơi', 15000)
+
+  // Combo lẩu mẫu: phần cố định + nhóm khách tự chọn
+  const rauNam = it(canh, 'Đĩa rau & nấm', 45000, 'Rau muống, cải, nấm các loại')
+  const thitBo = it(canh, 'Đĩa bò tươi', 120000)
+  const bunTuoi = it(canh, 'Bún tươi', 15000)
+  const launThai = it(canh, 'Nước lẩu Thái chua cay', 0)
+  const lauNam = it(canh, 'Nước lẩu nấm thanh', 0)
+  const lauRieu = it(canh, 'Nước lẩu riêu cua', 0)
+  const haiSan = it(canh, 'Đĩa hải sản', 150000)
+  const viengBo = it(canh, 'Bò viên', 60000)
+  const comboLau: MenuItem = {
+    id: uid(), branchId: b, categoryId: canh.id, name: 'Combo lẩu đậm vị (2–3 người)', price: 399000,
+    description: 'Chọn nước lẩu, đồ nhúng và món ăn kèm', imageUrl: null, isActive: true,
+    combo: {
+      fixed: [{ itemId: rauNam.id, qty: 1 }, { itemId: bunTuoi.id, qty: 2 }],
+      groups: [
+        { id: 'nuoc', name: 'Nước lẩu', min: 1, max: 1, options: [
+          { itemId: launThai.id, extra: 0 }, { itemId: lauNam.id, extra: 0 }, { itemId: lauRieu.id, extra: 20000 },
+        ] },
+        { id: 'nhung', name: 'Đồ nhúng', min: 1, max: 2, options: [
+          { itemId: thitBo.id, extra: 0 }, { itemId: viengBo.id, extra: 0 }, { itemId: haiSan.id, extra: 40000 },
+        ] },
+      ],
+    },
+  }
+  db.items.push(comboLau)
 
   const all = db.items.filter((x) => x.branchId === b).map((x) => x.id)
   db.menus.push(
@@ -117,7 +145,7 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
     const line = (o: Order, item: MenuItem, qty: number, status: OrderItem['status'], minAgo: number, note = '') => {
       db.orderItems.push({
         id: uid(), orderId: o.id, sessionId: o.sessionId, tableId: o.tableId, branchId: b, itemId: item.id,
-        name: item.name, price: item.price, qty, note, status, replacedFromId: null,
+        name: item.name, price: item.price, qty, note, detail: '', status, replacedFromId: null,
         createdAt: iso(-minAgo), servedAt: status === 'served' ? iso(-minAgo + 5) : null,
       })
     }

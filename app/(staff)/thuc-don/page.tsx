@@ -72,7 +72,7 @@ function ItemsTab() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-ink-soft">Bật/tắt công tắc để báo hết món hoặc bán lại ngay.</p>
-        <Button variant="primary" onClick={() => setEditing({ branchId: snap.branch.id, name: '', price: 0, description: '', isActive: true, categoryId: snap.categories[0]?.id ?? null, imageUrl: null })}>
+        <Button variant="primary" onClick={() => setEditing({ branchId: snap.branch.id, name: '', price: 0, description: '', isActive: true, categoryId: snap.categories[0]?.id ?? null, imageUrl: null, combo: null })}>
           <Plus className="size-4" /> Thêm món
         </Button>
       </div>
@@ -137,6 +137,7 @@ function ItemForm({ initial, onClose }: { initial: Partial<MenuItem>; onClose: (
         description: f.description ?? '',
         price: Math.round(Number(price)),
         imageUrl: f.imageUrl || null,
+        combo: f.combo ?? null,
         isActive: f.isActive ?? true,
       }),
     )

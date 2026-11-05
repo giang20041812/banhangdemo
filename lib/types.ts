@@ -27,7 +27,13 @@ export interface DiningTable {
   seats: number
   cells: Cell[]
   qrToken: string
+  /** Bàn thường hay bàn VIP */
+  kind: TableKind
+  /** Phụ thu cố định mỗi lượt khách (VND), chỉ áp dụng cho bàn VIP */
+  surcharge: number
 }
+
+export type TableKind = 'normal' | 'vip'
 
 export interface Category {
   id: string
@@ -45,6 +51,23 @@ export interface MenuItem {
   price: number
   imageUrl: string | null
   isActive: boolean
+  /** null = món thường; có giá trị = combo (giá `price` là giá gốc, chưa gồm phụ thu các lựa chọn) */
+  combo: ComboDef | null
+}
+
+/** Cấu trúc combo: phần cố định + các nhóm khách tự chọn (vd lẩu: chọn 1 nước lẩu, 2 loại rau…) */
+export interface ComboDef {
+  fixed: { itemId: string; qty: number }[]
+  groups: ComboGroup[]
+}
+
+export interface ComboGroup {
+  id: string
+  name: string
+  /** Số lựa chọn tối thiểu / tối đa trong nhóm */
+  min: number
+  max: number
+  options: { itemId: string; /** phụ thu nếu chọn (VND) */ extra: number }[]
 }
 
 /** Thực đơn theo khung giờ. days: 0=CN … 6=T7. start/end dạng "HH:MM". */
@@ -103,6 +126,8 @@ export interface OrderItem {
   price: number
   qty: number
   note: string
+  /** Với combo: mô tả phần cố định + lựa chọn của khách, mỗi dòng một ý */
+  detail: string
   status: OrderStatus
   replacedFromId: string | null
   createdAt: string
@@ -138,6 +163,24 @@ export interface OrderLine {
   itemId: string
   qty: number
   note?: string
+  /** Với combo: groupId -> danh sách itemId đã chọn */
+  choices?: Record<string, string[]>
+}
+
+/** Hóa đơn của một phiên bàn đã thanh toán; nguồn của báo cáo doanh thu */
+export interface Receipt {
+  id: string
+  branchId: string
+  tableId: string | null
+  tableCode: string
+  tableKind: TableKind
+  openedAt: string
+  closedAt: string
+  /** Tiền món (không gồm phụ thu) */
+  itemsTotal: number
+  /** Phụ thu bàn VIP */
+  surcharge: number
+  total: number
 }
 
 export interface PlaceOrderResult {
