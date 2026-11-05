@@ -29,24 +29,49 @@ export const useApp = () => {
 
 const BRANCH_KEY = 'vqm-branch'
 
-function beep() {
+let audioCtx: AudioContext | null = null
+function getAudio(): AudioContext | null {
   try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    const ctx = new AC()
-    const o = ctx.createOscillator()
-    const g = ctx.createGain()
-    o.type = 'sine'
-    o.frequency.setValueAtTime(880, ctx.currentTime)
-    o.frequency.setValueAtTime(1175, ctx.currentTime + 0.12)
-    g.gain.setValueAtTime(0.0001, ctx.currentTime)
-    g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02)
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4)
-    o.connect(g).connect(ctx.destination)
-    o.start()
-    o.stop(ctx.currentTime + 0.42)
-    setTimeout(() => void ctx.close(), 600)
+    if (!audioCtx) {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      audioCtx = new AC()
+    }
+    return audioCtx
   } catch {
-    /* trình duyệt chặn âm thanh: bỏ qua */
+    return null
+  }
+}
+
+/** Chuông "ding-dong" + đọc to bằng tiếng Việt */
+function notifySound(text: string) {
+  const ctx = getAudio()
+  if (ctx) {
+    void ctx.resume().catch(() => {})
+    const t0 = ctx.currentTime
+    ;[880, 1175, 880, 1175].forEach((f, i) => {
+      const o = ctx.createOscillator()
+      const g = ctx.createGain()
+      const t = t0 + i * 0.25
+      o.type = 'sine'
+      o.frequency.setValueAtTime(f, t)
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(0.5, t + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24)
+      o.connect(g).connect(ctx.destination)
+      o.start(t)
+      o.stop(t + 0.26)
+    })
+  }
+  try {
+    const synth = window.speechSynthesis
+    if (!synth) return
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'vi-VN'
+    const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith('vi'))
+    if (voice) u.voice = voice
+    setTimeout(() => synth.speak(u), 1000)
+  } catch {
+    /* không đọc được: bỏ qua */
   }
 }
 
@@ -64,6 +89,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setBackend(getBackend())
+  }, [])
+
+  // Trình duyệt chỉ cho phát âm thanh sau khi người dùng chạm/bấm lần đầu: mở khóa ở đây
+  useEffect(() => {
+    const unlock = () => {
+      void getAudio()?.resume().catch(() => {})
+      try {
+        window.speechSynthesis?.getVoices()
+      } catch {}
+    }
+    window.addEventListener('pointerdown', unlock, { once: true })
+    window.addEventListener('keydown', unlock, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
   }, [])
 
   const run = useCallback(
@@ -113,7 +154,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const t = next.tables.find((x) => x.id === o.tableId)
           const n = next.orderItems.filter((i) => i.orderId === o.id).reduce((s, i) => s + i.qty, 0)
           toast({ text: `Bàn ${t?.code ?? ''} vừa gọi ${n} món (lượt ${o.seq})`, tone: 'info' })
-          beep()
+          notifySound(`Bàn ${t?.code ?? ''} vừa gọi ${n} món`)
         }
       }
       seenOrders.current = ids
