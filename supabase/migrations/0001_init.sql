@@ -1,4 +1,4 @@
--- Vị Quê Mình — schema khởi tạo
+-- Schema khởi tạo
 -- Mô hình: nhiều chi nhánh, mỗi chi nhánh nhiều tầng, mỗi tầng một lưới các ô; các ô sát nhau tạo thành bàn.
 
 create extension if not exists pgcrypto;

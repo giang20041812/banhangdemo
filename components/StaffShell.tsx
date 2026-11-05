@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookOpen, ChevronDown, LayoutGrid, LogOut, MapPin, PencilRuler, Plus, QrCode, RotateCcw, UtensilsCrossed } from 'lucide-react'
+import { BookOpen, ChevronDown, LayoutGrid, MapPin, PencilRuler, Plus, QrCode, RotateCcw, UtensilsCrossed } from 'lucide-react'
 import clsx from 'clsx'
 import { useApp } from './AppProvider'
 import { Button, Field, Modal, inputCls } from './ui'
@@ -17,7 +17,7 @@ const NAV = [
 
 export function StaffShell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
-  const { backend, branches, branchesLoaded, snap, setBranchId, reloadBranches, run, signOut } = useApp()
+  const { backend, branches, branchesLoaded, snap, setBranchId, reloadBranches, run } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -40,15 +40,6 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh flex-col">
       <header className="wood-surface relative z-30 flex shrink-0 items-center gap-2 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-wood-100 shadow-warm sm:gap-3 sm:px-5">
-        <Link href="/van-hanh" className="flex items-center gap-2.5">
-          <span className="grid size-10 place-items-center rounded-xl bg-turmeric/90 text-wood-900 shadow-inner">
-            <UtensilsCrossed className="size-5" />
-          </span>
-          <span className="hidden font-display text-xl font-semibold leading-none text-white sm:block">
-            Vị Quê Mình
-          </span>
-        </Link>
-
         <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}
@@ -134,20 +125,10 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
               Demo
             </span>
           )}
-          {backend.mode === 'supabase' && (
-            <button onClick={() => void signOut()} aria-label="Đăng xuất" className="touch-target grid place-items-center rounded-xl text-wood-100 hover:bg-white/10">
-              <LogOut className="size-[18px]" />
-            </button>
-          )}
         </nav>
         <div className="ml-auto flex items-center gap-1 md:hidden">
           {backend.mode === 'demo' && (
             <span className="rounded-full bg-turmeric px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-wood-900">Demo</span>
-          )}
-          {backend.mode === 'supabase' && (
-            <button onClick={() => void signOut()} aria-label="Đăng xuất" className="touch-target grid place-items-center rounded-xl text-wood-100 hover:bg-white/10">
-              <LogOut className="size-[18px]" />
-            </button>
           )}
         </div>
       </header>
@@ -159,7 +140,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
               <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-wood-500 text-white shadow-warm">
                 <UtensilsCrossed className="size-8" />
               </span>
-              <h1 className="mt-4 font-display text-2xl font-semibold text-wood-800">Chào mừng đến Vị Quê Mình</h1>
+              <h1 className="mt-4 font-display text-2xl font-semibold text-wood-800">Chào mừng bạn</h1>
               <p className="mt-2 text-sm text-ink-soft">Bắt đầu bằng việc tạo chi nhánh đầu tiên. Sau đó bạn vẽ sơ đồ bàn, nhập thực đơn và in mã QR.</p>
               <div className="mt-5">
                 <Button variant="primary" size="lg" onClick={() => setAdding(true)}>
@@ -211,7 +192,7 @@ export function StaffShell({ children }: { children: React.ReactNode }) {
       >
         <div className="space-y-4">
           <Field label="Tên chi nhánh">
-            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Vị Quê Mình · Quận 3" autoFocus />
+            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Chi nhánh Quận 3" autoFocus />
           </Field>
           <Field label="Địa chỉ">
             <input className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Số nhà, đường, quận" />

@@ -1,4 +1,4 @@
-# Vị Quê Mình — quản lý bàn & gọi món tại chỗ
+# Quản lý bàn & gọi món tại chỗ
 
 Webapp cho quán ăn: vẽ sơ đồ bàn dạng lưới (các ô sát nhau tự ghép thành bàn), mỗi bàn có QR riêng để khách gọi món,
 nhân viên theo dõi Kanban từng bàn, thực đơn đổi theo khung giờ, xử lý món hết theo thời điểm. Hỗ trợ nhiều chi nhánh, nhiều tầng.

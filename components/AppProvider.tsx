@@ -1,9 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { getBackend, isSupabaseConfigured, type Backend } from '@/lib/backend'
-import { getSupabase } from '@/lib/backend/supabase'
+import { getBackend, type Backend } from '@/lib/backend'
 import type { Branch, Snapshot } from '@/lib/types'
 import { useToast } from './Toast'
 
@@ -20,8 +18,6 @@ interface AppCtx {
   reloadBranches: () => Promise<void>
   /** Chạy thao tác, tự báo lỗi bằng toast; trả về undefined nếu lỗi */
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>
-  /** id bàn đang được chọn ở màn vận hành (để chuyển từ thông báo) */
-  signOut: () => Promise<void>
 }
 
 const Ctx = createContext<AppCtx | null>(null)
@@ -55,10 +51,8 @@ function beep() {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
   const toast = useToast()
   const [backend, setBackend] = useState<Backend | null>(null)
-  const [authed, setAuthed] = useState(false)
   const [branches, setBranches] = useState<Branch[]>([])
   const [branchesLoaded, setBranchesLoaded] = useState(false)
   const [branchId, setBranchIdState] = useState<string | null>(null)
@@ -68,24 +62,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const branchIdRef = useRef<string | null>(null)
   branchIdRef.current = branchId
 
-  // Khởi tạo backend + kiểm tra đăng nhập
   useEffect(() => {
-    const b = getBackend()
-    setBackend(b)
-    if (!isSupabaseConfigured()) {
-      setAuthed(true)
-      return
-    }
-    const sb = getSupabase()
-    void sb.auth.getSession().then(({ data }) => {
-      if (!data.session) router.replace('/login')
-      else setAuthed(true)
-    })
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (!session) router.replace('/login')
-    })
-    return () => sub.subscription.unsubscribe()
-  }, [router])
+    setBackend(getBackend())
+  }, [])
 
   const run = useCallback(
     async <T,>(fn: () => Promise<T>) => {
@@ -115,8 +94,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [backend])
 
   useEffect(() => {
-    if (authed) void reloadBranches()
-  }, [authed, reloadBranches])
+    void reloadBranches()
+  }, [reloadBranches])
 
   const refresh = useCallback(async () => {
     const id = branchIdRef.current
@@ -174,20 +153,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [])
 
-  const signOut = useCallback(async () => {
-    if (isSupabaseConfigured()) await getSupabase().auth.signOut()
-    router.replace('/login')
-  }, [router])
-
   const value = useMemo<AppCtx | null>(
     () =>
       backend
-        ? { backend, branches, branchesLoaded, snap, loading: !snap, now, setBranchId, refresh, reloadBranches, run, signOut }
+        ? { backend, branches, branchesLoaded, snap, loading: !snap, now, setBranchId, refresh, reloadBranches, run }
         : null,
-    [backend, branches, branchesLoaded, snap, now, setBranchId, refresh, reloadBranches, run, signOut],
+    [backend, branches, branchesLoaded, snap, now, setBranchId, refresh, reloadBranches, run],
   )
 
-  if (!value || !authed) {
+  if (!value) {
     return (
       <div className="grid min-h-dvh place-items-center">
         <div className="size-9 animate-spin rounded-full border-4 border-wood-200 border-t-wood-500" />

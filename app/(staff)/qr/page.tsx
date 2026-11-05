@@ -142,11 +142,7 @@ function QrCard({
 
   return (
     <article className="qr-card flex flex-col items-center rounded-3xl bg-white p-5 text-center shadow-warm ring-1 ring-wood-100">
-      <div className="flex items-center gap-2 text-wood-700">
-        <UtensilsCrossed className="size-5" />
-        <span className="font-display text-lg font-semibold">Vị Quê Mình</span>
-      </div>
-      <p className="mt-1 font-display text-4xl font-bold text-wood-800">Bàn {table.code}</p>
+      <p className="font-display text-4xl font-bold text-wood-800">Bàn {table.code}</p>
       <p className="text-xs text-ink-soft">{floor} · {table.seats} chỗ</p>
       <div className="my-3 rounded-2xl border-4 border-wood-200 bg-white p-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}

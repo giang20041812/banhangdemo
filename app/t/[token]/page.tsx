@@ -183,10 +183,8 @@ export default function GuestPage() {
       header={
         <header className="wood-surface sticky top-0 z-20 pt-[env(safe-area-inset-top)] text-white shadow-warm">
           <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-turmeric/90 text-wood-900"><UtensilsCrossed className="size-6" /></span>
             <div className="min-w-0 flex-1">
-              <p className="font-display text-lg font-semibold leading-tight">Vị Quê Mình</p>
-              <p className="truncate text-xs text-wood-200">{snap.branch.name}</p>
+              <p className="truncate font-display text-lg font-semibold leading-tight">{snap.branch.name}</p>
             </div>
             <div className="rounded-xl bg-white/15 px-3 py-1.5 text-center">
               <p className="text-[10px] uppercase tracking-wider text-wood-200">Bạn ngồi</p>

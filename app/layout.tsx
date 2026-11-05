@@ -17,8 +17,8 @@ const serif = Lora({
 })
 
 export const metadata: Metadata = {
-  title: 'Vị Quê Mình',
-  description: 'Quản lý bàn và gọi món tại chỗ cho quán Vị Quê Mình',
+  title: 'Quản lý bàn & gọi món',
+  description: 'Quản lý bàn và gọi món tại chỗ',
 }
 
 export const viewport: Viewport = {

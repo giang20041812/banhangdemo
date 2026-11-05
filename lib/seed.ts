@@ -154,6 +154,6 @@ export function seedBranch(db: Db, name: string, address: string, withDemoOrders
 
 export function seedDb(): Db {
   const db = emptyDb()
-  seedBranch(db, 'Vị Quê Mình · Cơ sở chính', '12 Nguyễn Huệ, Quận 1, TP.HCM')
+  seedBranch(db, 'Cơ sở chính', '12 Nguyễn Huệ, Quận 1, TP.HCM')
   return db
 }
