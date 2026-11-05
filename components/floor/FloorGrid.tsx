@@ -46,6 +46,7 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
   const [stroke, setStroke] = useState<Cell[]>([])
   const last = useRef<Cell | null>(null)
   const active = useRef(false)
+  const pointers = useRef(new Set<number>())
 
   const cellAt = (e: React.PointerEvent): Cell => {
     const rect = ref.current!.getBoundingClientRect()
@@ -62,6 +63,14 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
 
   const down = (e: React.PointerEvent) => {
     if (!draw) return
+    pointers.current.add(e.pointerId)
+    if (pointers.current.size > 1) {
+      // ngón thứ 2 chạm vào: đang chụm để thu phóng, hủy nét vẽ
+      active.current = false
+      last.current = null
+      setStroke([])
+      return
+    }
     ref.current!.setPointerCapture(e.pointerId)
     active.current = true
     const c = cellAt(e)
@@ -74,7 +83,8 @@ export function FloorGrid({ rows, cols, cell, tables, toneOf, selectedId, onTabl
     if (last.current && (last.current.r !== c.r || last.current.c !== c.c)) add(line(last.current, c))
     last.current = c
   }
-  const up = () => {
+  const up = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId)
     if (!draw || !active.current) return
     active.current = false
     const cells = stroke

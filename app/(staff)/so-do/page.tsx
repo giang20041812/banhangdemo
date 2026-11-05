@@ -12,6 +12,7 @@ import { useToast } from '@/components/Toast'
 import { Button, Empty, Field, Modal, Stepper, inputCls } from '@/components/ui'
 import { erase, paint, type Ids, type LayoutEvent, type LayoutTable } from '@/lib/grid/grid'
 import { token, uid } from '@/lib/id'
+import { usePinchZoom } from '@/lib/usePinchZoom'
 import type { Cell } from '@/lib/types'
 
 type Tool = 'paint' | 'erase' | 'select'
@@ -30,12 +31,15 @@ export default function FloorEditorPage() {
   const [draft, setDraft] = useState<LayoutTable[]>([])
   const [past, setPast] = useState<LayoutTable[][]>([])
   const [future, setFuture] = useState<LayoutTable[][]>([])
-  const [tool, setTool] = useState<Tool>('paint')
+  const [tool, setTool] = useState<Tool>('select')
   const [cell, setCell] = useState(44)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dim, setDim] = useState({ name: '', rows: 12, cols: 20 })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const pinch = useCallback((r: number) => setCell((c) => Math.min(72, Math.max(16, c * r))), [])
+  usePinchZoom(canvasRef, pinch)
   const draftRef = useRef<LayoutTable[]>([])
   draftRef.current = draft
 
@@ -289,7 +293,7 @@ export default function FloorEditorPage() {
           </div>
         </div>
 
-        <div className="scroll-thin h-[60dvh] overflow-auto bg-cream/40 p-3 sm:p-5 lg:h-auto lg:min-h-0 lg:flex-1">
+        <div ref={canvasRef} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin h-[60dvh] overflow-auto bg-cream/40 p-3 sm:p-5 lg:h-auto lg:min-h-0 lg:flex-1">
           <div className="mx-auto w-fit">
             <FloorGrid
               rows={dim.rows}

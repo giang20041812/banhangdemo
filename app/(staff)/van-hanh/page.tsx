@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, BookOpen, LayoutGrid, PencilRuler, Users } from 'lucide-react'
 import clsx from 'clsx'
@@ -10,6 +10,7 @@ import { TablePanel } from '@/components/kanban/TablePanel'
 import { MenuTab } from '@/components/menu/MenuTab'
 import { itemStatus } from '@/components/menu/Availability'
 import { Button, Empty } from '@/components/ui'
+import { usePinchZoom } from '@/lib/usePinchZoom'
 import { ago } from '@/lib/format'
 import { TONE_LABEL, serveQueue, tableState, type TableTone } from '@/lib/derive'
 
@@ -24,6 +25,9 @@ export default function OperationsPage() {
   const [drawer, setDrawer] = useState(false) // chỉ dùng trên màn hình hẹp
   const mapRef = useRef<HTMLDivElement>(null)
   const [mapW, setMapW] = useState(900)
+  const [zoom, setZoom] = useState(1)
+  const pinch = useCallback((r: number) => setZoom((z) => Math.min(3, Math.max(0.4, z * r))), [])
+  usePinchZoom(mapRef, pinch)
 
   useEffect(() => {
     if (!mapRef.current) return
@@ -72,7 +76,7 @@ export default function OperationsPage() {
   }
   const totalAttention = snap.tables.reduce((s, t) => s + (states.get(t.id)?.counts.attention ?? 0), 0)
   const outItems = snap.items.filter((i) => itemStatus(i, snap, now).kind === 'out').length
-  const cell = Math.max(28, Math.min(64, Math.floor((mapW - 24) / floor.cols)))
+  const cell = Math.max(14, Math.round(Math.max(28, Math.min(64, Math.floor((mapW - 24) / floor.cols))) * zoom))
   const selected = snap.tables.find((t) => t.id === selectedId)
 
   function pick(id: string) {
@@ -169,7 +173,7 @@ export default function OperationsPage() {
           </div>
         )}
 
-        <div ref={mapRef} className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        <div ref={mapRef} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {floorTables.length === 0 ? (
             <div className="mx-auto max-w-md pt-10">
               <Empty
