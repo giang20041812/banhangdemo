@@ -1,9 +1,9 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect } from 'react'
 
-/** Chụm 2 ngón để thu/phóng: gọi onScale(tỉ lệ thay đổi so với lần đo trước) */
-export function usePinchZoom(ref: RefObject<HTMLElement | null>, onScale: (ratio: number) => void) {
+/** Chụm 2 ngón để thu/phóng: gọi onScale(tỉ lệ thay đổi so với lần đo trước).
+ *  Nhận phần tử (lưu bằng state) để gắn đúng lúc phần tử mới xuất hiện. */
+export function usePinchZoom(el: HTMLElement | null, onScale: (ratio: number) => void) {
   useEffect(() => {
-    const el = ref.current
     if (!el) return
     let last = 0
     const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
@@ -30,5 +30,5 @@ export function usePinchZoom(ref: RefObject<HTMLElement | null>, onScale: (ratio
       el.removeEventListener('touchend', end)
       el.removeEventListener('touchcancel', end)
     }
-  }, [ref, onScale])
+  }, [el, onScale])
 }

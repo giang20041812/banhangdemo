@@ -37,9 +37,9 @@ export default function FloorEditorPage() {
   const [dim, setDim] = useState({ name: '', rows: 12, cols: 20 })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const [canvasEl, setCanvasEl] = useState<HTMLDivElement | null>(null)
   const pinch = useCallback((r: number) => setCell((c) => Math.min(72, Math.max(16, c * r))), [])
-  usePinchZoom(canvasRef, pinch)
+  usePinchZoom(canvasEl, pinch)
   const draftRef = useRef<LayoutTable[]>([])
   draftRef.current = draft
 
@@ -293,7 +293,7 @@ export default function FloorEditorPage() {
           </div>
         </div>
 
-        <div ref={canvasRef} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin h-[60dvh] overflow-auto bg-cream/40 p-3 sm:p-5 lg:h-auto lg:min-h-0 lg:flex-1">
+        <div ref={setCanvasEl} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin h-[60dvh] overflow-auto bg-cream/40 p-3 sm:p-5 lg:h-auto lg:min-h-0 lg:flex-1">
           <div className="mx-auto w-fit">
             <FloorGrid
               rows={dim.rows}

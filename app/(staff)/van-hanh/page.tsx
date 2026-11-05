@@ -23,18 +23,19 @@ export default function OperationsPage() {
   const [tab, setTab] = useState<Tab>('table')
   const [expanded, setExpanded] = useState(false)
   const [drawer, setDrawer] = useState(false) // chỉ dùng trên màn hình hẹp
-  const mapRef = useRef<HTMLDivElement>(null)
-  const [mapW, setMapW] = useState(900)
+  const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null)
+  const [mapW, setMapW] = useState(360)
   const [zoom, setZoom] = useState(1)
-  const pinch = useCallback((r: number) => setZoom((z) => Math.min(3, Math.max(0.4, z * r))), [])
-  usePinchZoom(mapRef, pinch)
+  const pinch = useCallback((r: number) => setZoom((z) => Math.min(3, Math.max(0.3, z * r))), [])
+  usePinchZoom(mapEl, pinch)
 
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapEl) return
+    setMapW(mapEl.clientWidth)
     const ro = new ResizeObserver(([e]) => setMapW(e.contentRect.width))
-    ro.observe(mapRef.current)
+    ro.observe(mapEl)
     return () => ro.disconnect()
-  }, [])
+  }, [mapEl])
 
   const floor = snap?.floors.find((f) => f.id === floorId) ?? snap?.floors[0]
   // nếu bàn đang chọn bị xóa
@@ -76,7 +77,8 @@ export default function OperationsPage() {
   }
   const totalAttention = snap.tables.reduce((s, t) => s + (states.get(t.id)?.counts.attention ?? 0), 0)
   const outItems = snap.items.filter((i) => itemStatus(i, snap, now).kind === 'out').length
-  const cell = Math.max(14, Math.round(Math.max(28, Math.min(64, Math.floor((mapW - 24) / floor.cols))) * zoom))
+  // mặc định vừa khít chiều ngang màn hình (điện thoại nhỏ hơn 28px vẫn được), rồi nhân theo zoom
+  const cell = Math.max(10, Math.round(Math.max(12, Math.min(64, Math.floor((mapW - 24) / floor.cols))) * zoom))
   const selected = snap.tables.find((t) => t.id === selectedId)
 
   function pick(id: string) {
@@ -173,7 +175,7 @@ export default function OperationsPage() {
           </div>
         )}
 
-        <div ref={mapRef} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        <div ref={setMapEl} style={{ touchAction: 'pan-x pan-y' }} className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-4">
           {floorTables.length === 0 ? (
             <div className="mx-auto max-w-md pt-10">
               <Empty
