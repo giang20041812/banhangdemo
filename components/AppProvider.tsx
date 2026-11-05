@@ -43,7 +43,7 @@ function getAudio(): AudioContext | null {
 }
 
 /** Chuông "ding-dong" + đọc to bằng tiếng Việt */
-function notifySound(text: string) {
+function notifySound(tableCode: string) {
   const ctx = getAudio()
   if (ctx) {
     void ctx.resume().catch(() => {})
@@ -62,17 +62,14 @@ function notifySound(text: string) {
       o.stop(t + 0.26)
     })
   }
-  try {
-    const synth = window.speechSynthesis
-    if (!synth) return
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = 'vi-VN'
-    const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith('vi'))
-    if (voice) u.voice = voice
-    setTimeout(() => synth.speak(u), 1000)
-  } catch {
-    /* không đọc được: bỏ qua */
+  // Giọng đọc thu sẵn (public/sounds): không phụ thuộc giọng tiếng Việt trên máy
+  const num = parseInt(tableCode.replace(/\D/g, ''), 10)
+  const src = (n: string) => `/sounds/${n}.mp3`
+  const audio = new Audio(src(num >= 1 && num <= 40 ? `ban-${num}` : 'khach-goi-mon'))
+  audio.onerror = () => {
+    if (!audio.src.endsWith('khach-goi-mon.mp3')) void new Audio(src('khach-goi-mon')).play().catch(() => {})
   }
+  setTimeout(() => void audio.play().catch(() => {}), 1000)
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -154,7 +151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const t = next.tables.find((x) => x.id === o.tableId)
           const n = next.orderItems.filter((i) => i.orderId === o.id).reduce((s, i) => s + i.qty, 0)
           toast({ text: `Bàn ${t?.code ?? ''} vừa gọi ${n} món (lượt ${o.seq})`, tone: 'info' })
-          notifySound(`Bàn ${t?.code ?? ''} vừa gọi ${n} món`)
+          notifySound(t?.code ?? '')
         }
       }
       seenOrders.current = ids
